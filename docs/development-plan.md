@@ -67,3 +67,56 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
 ## 5. ドキュメンテーション同期ルール
 
 機能追加や仕様変更が発生した場合は、実装完了と同時に `docs/detailed-design.md` や `docs/milestones.md` を更新し、**常にコードとドキュメントが完全に一致した状態** を保ちます。
+
+---
+
+## 6. 実装作業履歴 (Implementation Log)
+
+本プロジェクトにおける実際の実装作業とコミットの履歴です。
+
+### 2026-10-03 (プロジェクト立ち上げ & Milestone 1 進行中)
+
+#### 1. 要件定義 & ドキュメント策定 (Documentation First)
+
+- プロジェクト仕様書群（`requirements.md`, `ui-spec.md`, `architecture.md`, `detailed-design.md`, `milestones.md`, `development-plan.md`, `iac-pulumi.md`）および `AGENTS.md` の作成。
+- リポジトリ初期化 & GitHub（`https://github.com/oharato/stockly`）への push。
+
+#### 2. Milestone 1 - Step 1: 基盤セットアップ完了
+
+- ランタイム環境固定: `.mise.toml`（Node.js `24.13.0`, pnpm `12.3.4`）。
+- pnpm モノレポ構造の構築 (`apps/web`, `apps/api`)。
+- `apps/web`: Svelte 5 (`5.57.0`), Tailwind CSS v4 (`4.3.3`), `vite-plugin-pwa` (`1.3.0`), `lucide-svelte` (`1.0.1`), TypeScript (`5.8.2`)。
+- `apps/api`: Hono (`4.13.9`), `@hono/zod-validator` (`0.9.1`), Zod (`3.24.2`), `cf` (`1.0.0-beta.12`), `wrangler` (`4.141.0`)。
+- 主なコミット: `ee8f9cc`, `2ce6331`, `df1e297`, `417cc3d`。
+
+#### 3. Milestone 1 - Step 2: D1 + Hono CRUD API & 自動テスト完了
+
+- D1 マイグレーション実行 (`0001_create_stocks.sql`): `stocks`, `tags`, `ai_comments`, `user_stats` の SQLite テーブルを作成。
+- Zod スキーマ定義 (`apps/api/src/schemas/stock.ts`)。
+- CRUD エンドポイント実装 (`apps/api/src/routes/stocks.ts`):
+  - `GET /api/stocks`（一覧取得）
+  - `POST /api/stocks`（新規内省の投稿）
+  - `DELETE /api/stocks/:id`（内省の削除）
+  - `GET /api/stats`（ストリーク・スコア等の統計取得）
+- 自動単体テスト実装 (`apps/api/test/stocks.test.ts`):
+  - インメモリ D1 モックを用いた全 6 件の API テストを作成し、`vp test` で 45ms で全件パス。
+- 主なコミット: `75dab66`, `004fc5e`。
+
+#### 4. 統合ツールチェーン Vite+ (`vp`) の最適化 & 型検査強化
+
+- `pnpm-workspace.yaml` に overrides（`vite: npm:@voidzero-dev/vite-plus-core@1.0.0`, `vitest: 5.0.1`）を設定。
+- プロジェクトルートに `vite-plus@1.0.0` を導入。
+- ルート `vite.config.ts` で `lint.options.typeCheck: true` を有効化し、`vp check` でフォーマット・リントに加え TypeScript 型検査を一括高速実行できるように設定。
+- VS Code 誤警告の要因だった `.vscode/mcp.json` を整理し、標準のルート `.mcp.json` に統一。
+- 主なコミット: `efa8185`, `2b4769d`, `87e8ff4`。
+
+#### 5. Milestone 1 - Step 3: フロントエンド UI 実装 (完了・検証中)
+
+- Svelte 5 Runes (`$state`, `$derived`, `$props`) を全面採用したモバイルファースト UI を構築。
+- 作成コンポーネント:
+  - `Header.svelte`: ロゴ、ストリーク 🔥 表示、累計ストックバッジ
+  - `BottomNav.svelte`: 下部ナビゲーションバー & フローティング `+` アクションボタン
+  - `StockCard.svelte`: 内省カード表示（本文、時刻、削除ボタン、AIコメントプレースホルダー枠）
+  - `Timeline.svelte`: 日付グループ見出し（今日、昨日、日付）付きリスト & 空状態（Empty State）UI
+  - `StockInputModal.svelte`: 内省入力モーダル（YWT, KPT, 学びのクイックテンプレート、文字数カウント、送信ボタン）
+  - `App.svelte`: タイムライン画面とふりかえり（統計レベル・連続ストリーク）画面の切り替え。
