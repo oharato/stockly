@@ -8,5 +8,8 @@
     "test": "vp test",
     "build": "pnpm --recursive build"
   },
+  "devDependencies": {
+    "@types/node": "24.13.3"
+  },
   "packageManager": "pnpm@12.3.4"
 }
