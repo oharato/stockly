@@ -7,20 +7,21 @@
 ## 1. Pulumi 構成方針
 
 ### 1.1 プロバイダー & パッケージ
+
 - プロバイダー: `@pulumi/cloudflare` (最新安定版)
 - ランタイム: TypeScript
 - パッケージマネージャー: pnpm
 
 ### 1.2 管理対象リソース一覧
 
-| リソース種別 | Pulumi リソース名 | 用途 |
-|---|---|---|
-| **D1 Database** | `cloudflare.D1Database` | ストック・ユーザー・統計等のメインSQLiteデータベース |
-| **R2 Bucket** | `cloudflare.R2Bucket` | ストックに添付される画像・写真ファイル保存 |
-| **KV Namespace** | `cloudflare.WorkersKvNamespace` | セッション、一時トークン、キャッシュ |
-| **Workers Script** | `cloudflare.WorkersScript` | バックエンド API (Hono) および Workers AI バインディング |
-| **Pages Project / Worker** | `cloudflare.PagesProject` または Workers Static Assets | フロントエンド PWA のホスティング |
-| **Custom Domain** | `cloudflare.Record` / `cloudflare.WorkerDomain` | カスタムドメインへのルーティング |
+| リソース種別               | Pulumi リソース名                                      | 用途                                                     |
+| -------------------------- | ------------------------------------------------------ | -------------------------------------------------------- |
+| **D1 Database**            | `cloudflare.D1Database`                                | ストック・ユーザー・統計等のメインSQLiteデータベース     |
+| **R2 Bucket**              | `cloudflare.R2Bucket`                                  | ストックに添付される画像・写真ファイル保存               |
+| **KV Namespace**           | `cloudflare.WorkersKvNamespace`                        | セッション、一時トークン、キャッシュ                     |
+| **Workers Script**         | `cloudflare.WorkersScript`                             | バックエンド API (Hono) および Workers AI バインディング |
+| **Pages Project / Worker** | `cloudflare.PagesProject` または Workers Static Assets | フロントエンド PWA のホスティング                        |
+| **Custom Domain**          | `cloudflare.Record` / `cloudflare.WorkerDomain`        | カスタムドメインへのルーティング                         |
 
 ---
 
@@ -35,46 +36,52 @@ const accountId = config.require("cloudflareAccountId");
 
 // 1. D1 Database の作成
 const stocklyDb = new cloudflare.D1Database("stockly-db", {
-    accountId: accountId,
-    name: "stockly-production-db",
+  accountId: accountId,
+  name: "stockly-production-db",
 });
 
 // 2. R2 Bucket の作成 (画像保存用)
 const stocklyImagesBucket = new cloudflare.R2Bucket("stockly-images", {
-    accountId: accountId,
-    name: "stockly-production-images",
-    location: "apac", // アジア太平洋リージョン
+  accountId: accountId,
+  name: "stockly-production-images",
+  location: "apac", // アジア太平洋リージョン
 });
 
 // 3. KV Namespace の作成 (キャッシュ・セッション用)
 const stocklyKv = new cloudflare.WorkersKvNamespace("stockly-kv", {
-    accountId: accountId,
-    title: "stockly-production-kv",
+  accountId: accountId,
+  title: "stockly-production-kv",
 });
 
 // 4. Cloudflare Workers API の設定とバインディング
 const stocklyApiWorker = new cloudflare.WorkersScript("stockly-api", {
-    accountId: accountId,
-    name: "stockly-api-worker",
-    content: "...worker bundle content...",
-    compatibilityDate: "2024-09-23",
-    compatibilityFlags: ["nodejs_compat"],
-    d1DatabaseBindings: [{
-        name: "DB",
-        databaseId: stocklyDb.id,
-    }],
-    r2BucketBindings: [{
-        name: "IMAGES_BUCKET",
-        bucketName: stocklyImagesBucket.name,
-    }],
-    kvNamespaceBindings: [{
-        name: "KV",
-        namespaceId: stocklyKv.id,
-    }],
-    // Workers AI のバインディング設定
-    ai: {
-        name: "AI",
+  accountId: accountId,
+  name: "stockly-api-worker",
+  content: "...worker bundle content...",
+  compatibilityDate: "2024-09-23",
+  compatibilityFlags: ["nodejs_compat"],
+  d1DatabaseBindings: [
+    {
+      name: "DB",
+      databaseId: stocklyDb.id,
     },
+  ],
+  r2BucketBindings: [
+    {
+      name: "IMAGES_BUCKET",
+      bucketName: stocklyImagesBucket.name,
+    },
+  ],
+  kvNamespaceBindings: [
+    {
+      name: "KV",
+      namespaceId: stocklyKv.id,
+    },
+  ],
+  // Workers AI のバインディング設定
+  ai: {
+    name: "AI",
+  },
 });
 
 // 出力エクスポート

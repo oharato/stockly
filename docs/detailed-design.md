@@ -6,16 +6,16 @@
 
 ## 1. 決定されたコア設計方針
 
-| 項目 | 決定事項 | 理由・UX方針 |
-|---|---|---|
-| **フロントエンド** | **Svelte 5 (Runes) + Tailwind CSS + Vite+** | 仮想DOMなしによる**最速起動 & 超軽量バンドル**。React Hooksの依存関係・再レンダリング問題のない直感的なリアクティビティ。 |
-| **利用形態 & 認証** | **自分専用（シングルユーザー）**<br>Cloudflare Access / パスコード保護 | 個人用内省ツールとして素早く立ち上げるため。 |
-| **リポジトリ構成** | **pnpm Monorepo + Vite+ (`vp`)**<br>`apps/web` (Svelte 5 PWA) + `apps/api` (Workers) | Vite+ による高速リント・ビルドと、Workers API / Pulumi の責務分離を両立。 |
-| **AIコメント (Stockly-AI)** | **Cloudflare Workers AI (Llama 3.1)**<br>※非同期バックグラウンド生成 | 投稿時は即座に保存・画面クローズし、記録の軽快さを最優先。コメントは裏側（`ctx.waitUntil`）で生成。 |
-| **再発見 (Rediscovery)** | **1日1件固定（「今日の再発見」）** | 画面を開くたびに変わるのではなく、その日の振り返りテーマとしてじっくり内省を促す。 |
-| **オフライン方針** | **MVPはオンライン前提** | 通信エラー時はリトライ案内。複雑なオフライン同期は後続フェーズへ。 |
-| **画像添付 (R2)** | **Milestone 3 で実装** | Milestone 1（MVP）はテキスト入力とコア体験の確立に集中。 |
-| **ゲーミフィケーション** | **標準仕様**（投稿+10pt、ストリーク+20pt） | 毎日1回以上の投稿でストリーク継続。1日空くと1にリセット。 |
+| 項目                        | 決定事項                                                                             | 理由・UX方針                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| **フロントエンド**          | **Svelte 5 (Runes) + Tailwind CSS + Vite+**                                          | 仮想DOMなしによる**最速起動 & 超軽量バンドル**。React Hooksの依存関係・再レンダリング問題のない直感的なリアクティビティ。 |
+| **利用形態 & 認証**         | **自分専用（シングルユーザー）**<br>Cloudflare Access / パスコード保護               | 個人用内省ツールとして素早く立ち上げるため。                                                                              |
+| **リポジトリ構成**          | **pnpm Monorepo + Vite+ (`vp`)**<br>`apps/web` (Svelte 5 PWA) + `apps/api` (Workers) | Vite+ による高速リント・ビルドと、Workers API / Pulumi の責務分離を両立。                                                 |
+| **AIコメント (Stockly-AI)** | **Cloudflare Workers AI (Llama 3.1)**<br>※非同期バックグラウンド生成                 | 投稿時は即座に保存・画面クローズし、記録の軽快さを最優先。コメントは裏側（`ctx.waitUntil`）で生成。                       |
+| **再発見 (Rediscovery)**    | **1日1件固定（「今日の再発見」）**                                                   | 画面を開くたびに変わるのではなく、その日の振り返りテーマとしてじっくり内省を促す。                                        |
+| **オフライン方針**          | **MVPはオンライン前提**                                                              | 通信エラー時はリトライ案内。複雑なオフライン同期は後続フェーズへ。                                                        |
+| **画像添付 (R2)**           | **Milestone 3 で実装**                                                               | Milestone 1（MVP）はテキスト入力とコア体験の確立に集中。                                                                  |
+| **ゲーミフィケーション**    | **標準仕様**（投稿+10pt、ストリーク+20pt）                                           | 毎日1回以上の投稿でストリーク継続。1日空くと1にリセット。                                                                 |
 
 ---
 
@@ -87,14 +87,15 @@ stockly/
 ### 3.2 具体的な実装例
 
 #### バックエンド定義 (`apps/api/src/routes/stocks.ts` & `apps/api/src/index.ts`)
+
 ```typescript
-import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
 
 // ① Zod スキーマ（入力バリデーション 兼 型定義）
 export const createStockSchema = z.object({
-  content: z.string().min(1, '本文を入力してください').max(1000),
+  content: z.string().min(1, "本文を入力してください").max(1000),
   tagNames: z.array(z.string()).optional(),
 });
 export type CreateStockInput = z.infer<typeof createStockSchema>;
@@ -108,28 +109,31 @@ export const stockResponseSchema = z.object({
 export type StockResponse = z.infer<typeof stockResponseSchema>;
 
 // ② Hono ルート定義
-const app = new Hono()
-  .post('/api/stocks', zValidator('json', createStockSchema), async (c) => {
-    const body = c.req.valid('json');
-    // D1 保存処理 ...
-    return c.json<StockResponse>({
-      id: 'generated-id',
+const app = new Hono().post("/api/stocks", zValidator("json", createStockSchema), async (c) => {
+  const body = c.req.valid("json");
+  // D1 保存処理 ...
+  return c.json<StockResponse>(
+    {
+      id: "generated-id",
       content: body.content,
-      created_at: new Date().toISOString()
-    }, 201);
-  });
+      created_at: new Date().toISOString(),
+    },
+    201,
+  );
+});
 
 // ③ 型のエクスポート
 export type AppType = typeof app;
 ```
 
 #### フロントエンドでの呼び出し (`apps/web/src/lib/api.ts`)
+
 ```typescript
-import { hc } from 'hono/client';
-import type { AppType } from 'api';
+import { hc } from "hono/client";
+import type { AppType } from "api";
 
 // 完全型安全なクライアントインスタンス
-export const api = hc<AppType>('/');
+export const api = hc<AppType>("/");
 ```
 
 ---
@@ -139,8 +143,9 @@ export const api = hc<AppType>('/');
 Svelte 5 では、従来のストア（`writable`）に代わり、TypeScript ファイル（`.svelte.ts`）内で **`$state`** や **`$derived`** を直接使ったモジュールレベルの状態管理を行います。
 
 ### 4.1 ストック状態管理例 (`apps/web/src/state/stockStore.svelte.ts`)
+
 ```typescript
-import { api } from '../lib/api';
+import { api } from "../lib/api";
 
 export interface Stock {
   id: string;
@@ -157,7 +162,7 @@ export function createStockStore() {
   const groupedStocks = $derived.by(() => {
     const groups: Record<string, Stock[]> = {};
     for (const stock of stocks) {
-      const dateKey = stock.created_at.slice(0, 10).replace(/-/g, '/');
+      const dateKey = stock.created_at.slice(0, 10).replace(/-/g, "/");
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(stock);
     }
@@ -165,9 +170,15 @@ export function createStockStore() {
   });
 
   return {
-    get stocks() { return stocks; },
-    get groupedStocks() { return groupedStocks; },
-    get isLoading() { return isLoading; },
+    get stocks() {
+      return stocks;
+    },
+    get groupedStocks() {
+      return groupedStocks;
+    },
+    get isLoading() {
+      return isLoading;
+    },
     async loadStocks() {
       isLoading = true;
       try {
@@ -181,7 +192,7 @@ export function createStockStore() {
       const res = await api.stocks.$post({ json: { content } });
       const newStock = await res.json();
       stocks = [newStock, ...stocks];
-    }
+    },
   };
 }
 ```

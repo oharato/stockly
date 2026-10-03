@@ -43,11 +43,11 @@ Conventional Commits に準拠し、コミットログから変更内容が即�
 
 Milestone 1 を以下の **4つのスモールステップ** に分割して進めます。
 
-| ステップ | 実装内容 | 成果物 / コミット | ユーザー確認ポイント |
-|---|---|---|---|
-| **Step 1: 基盤セットアップ** | ・`.mise.toml`（Node.js LTS, pnpm, Pulumi）<br>・pnpm workspace 初期化 (`apps/web`, `apps/api`)<br>・Vite+ (`vp`) 導入と TypeScript 設定 | `chore: setup pnpm monorepo with svelte 5 and hono` | ・`vp check` による型チェック/リントがパスすること |
-| **Step 2: バックエンド D1 + Hono API** | ・Cloudflare D1 ローカル設定 & マイグレーション SQL<br>・`stocks` テーブル作成<br>・ストック一覧取得・投稿・削除 API 実装<br>・Zod バリデーション | `feat(api): implement stocks crud with cloudflare d1` | ・ローカル API のリクエスト/レスポンス確認（Curl またはテスト） |
-| **Step 3: フロントエンド UI 実装** | ・Svelte 5 + Tailwind CSS + `lucide-svelte`<br>・モバイルレイアウト（ヘッダー、タイムライン、ボトムナビ）<br>・ストックカード、入力モーダル（テンプレートボタン） | `feat(web): implement mobile ui components and modal` | **【ブラウザで実機確認】**<br>・画面全体の見た目、配色、ボタン配置、入力フォームの使い心地 |
+| ステップ                                  | 実装内容                                                                                                                                                               | 成果物 / コミット                                       | ユーザー確認ポイント                                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Step 1: 基盤セットアップ**              | ・`.mise.toml`（Node.js LTS, pnpm, Pulumi）<br>・pnpm workspace 初期化 (`apps/web`, `apps/api`)<br>・Vite+ (`vp`) 導入と TypeScript 設定                               | `chore: setup pnpm monorepo with svelte 5 and hono`     | ・`vp check` による型チェック/リントがパスすること                                                             |
+| **Step 2: バックエンド D1 + Hono API**    | ・Cloudflare D1 ローカル設定 & マイグレーション SQL<br>・`stocks` テーブル作成<br>・ストック一覧取得・投稿・削除 API 実装<br>・Zod バリデーション                      | `feat(api): implement stocks crud with cloudflare d1`   | ・ローカル API のリクエスト/レスポンス確認（Curl またはテスト）                                                |
+| **Step 3: フロントエンド UI 実装**        | ・Svelte 5 + Tailwind CSS + `lucide-svelte`<br>・モバイルレイアウト（ヘッダー、タイムライン、ボトムナビ）<br>・ストックカード、入力モーダル（テンプレートボタン）      | `feat(web): implement mobile ui components and modal`   | **【ブラウザで実機確認】**<br>・画面全体の見た目、配色、ボタン配置、入力フォームの使い心地                     |
 | **Step 4: フロント・API 結合 & PWA 設定** | ・Zod + Hono RPC による End-to-End 型安全通信結線<br>・入力モーダルから D1 への保存とタイムライン自動反映<br>・`vite-plugin-pwa`（マニフェスト、スタンドアロンモード） | `feat: integrate api with svelte client and enable pwa` | **【Milestone 1 完了確認】**<br>・スマホのホーム画面追加テスト<br>・実際にストックを投稿・削除して動作チェック |
 
 ---

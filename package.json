@@ -1,0 +1,12 @@
+{
+  "name": "stockly-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "check": "vp check",
+    "test": "vp test",
+    "build": "pnpm --recursive build"
+  },
+  "packageManager": "pnpm@12.3.4"
+}
