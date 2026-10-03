@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createStockSchema, Stock, UserStats } from "../schemas/stock";
+import { calculateStreak, getJSTDateString } from "../utils/streak";
+import { generateAndSaveAIComment } from "../services/ai";
 
 export type Bindings = {
   DB: D1Database;
@@ -24,9 +26,22 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   .post("/api/stocks", zValidator("json", createStockSchema), async (c) => {
     const { content } = c.req.valid("json");
     const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const todayJST = getJSTDateString();
+
+    // 現在の統計情報を取得してストリークを計算
+    const currentStats = await c.env.DB.prepare(
+      `SELECT current_streak, max_streak, last_stock_date FROM user_stats WHERE id = 'default'`,
+    ).first<{ current_streak: number; max_streak: number; last_stock_date: string | null }>();
+
+    const streakResult = calculateStreak(
+      currentStats?.last_stock_date,
+      currentStats?.current_streak ?? 0,
+      currentStats?.max_streak ?? 0,
+      todayJST,
+    );
 
     // トランザクション的にストック作成と統計更新を実行
-    const now = new Date().toISOString();
     await c.env.DB.batch([
       c.env.DB.prepare(
         `INSERT INTO stocks (id, content, created_at, updated_at) VALUES (?, ?, ?, ?)`,
@@ -34,9 +49,12 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
       c.env.DB.prepare(
         `UPDATE user_stats
          SET total_stocks = total_stocks + 1,
-             score = score + 10
+             score = score + 10,
+             current_streak = ?,
+             max_streak = ?,
+             last_stock_date = ?
          WHERE id = 'default'`,
-      ),
+      ).bind(streakResult.newStreak, streakResult.newMaxStreak, todayJST),
     ]);
 
     const createdStock: Stock = {
@@ -45,6 +63,15 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
       created_at: now,
       updated_at: now,
     };
+
+    // 非同期で AI コメントを生成・保存 (waitUntil によるレイテンシゼロのバックグラウンド実行)
+    const aiPromise = generateAndSaveAIComment(c.env, id, content);
+    try {
+      c.executionCtx.waitUntil(aiPromise);
+    } catch {
+      // テスト環境等で ExecutionContext が未提供の場合はバックグラウンド解決
+      aiPromise.catch(() => {});
+    }
 
     return c.json(createdStock, 201);
   })

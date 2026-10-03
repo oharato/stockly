@@ -3,6 +3,7 @@
  */
 export function createMockDB() {
   const stocks: any[] = [];
+  const aiComments: Record<string, string> = {};
   const userStats = {
     id: "default",
     score: 0,
@@ -23,7 +24,11 @@ export function createMockDB() {
             args,
             async all() {
               if (query.includes("FROM stocks")) {
-                return { results: [...stocks].reverse() };
+                const results = [...stocks].reverse().map((s) => ({
+                  ...s,
+                  ai_comment: aiComments[s.id] || null,
+                }));
+                return { results };
               }
               return { results: [] };
             },
@@ -38,6 +43,13 @@ export function createMockDB() {
                 const id = args[0];
                 const idx = stocks.findIndex((s) => s.id === id);
                 if (idx !== -1) stocks.splice(idx, 1);
+                delete aiComments[id];
+                return { success: true };
+              }
+              if (query.includes("INSERT INTO ai_comments")) {
+                const stockId = args[1];
+                const comment = args[2];
+                aiComments[stockId] = comment;
                 return { success: true };
               }
               return { success: true };
@@ -46,7 +58,11 @@ export function createMockDB() {
         },
         async all() {
           if (query.includes("FROM stocks")) {
-            return { results: [...stocks].reverse() };
+            const results = [...stocks].reverse().map((s) => ({
+              ...s,
+              ai_comment: aiComments[s.id] || null,
+            }));
+            return { results };
           }
           return { results: [] };
         },
@@ -76,6 +92,11 @@ export function createMockDB() {
         if (q.includes("total_stocks + 1")) {
           userStats.total_stocks += 1;
           userStats.score += 10;
+          if (args.length >= 3) {
+            userStats.current_streak = args[0];
+            userStats.max_streak = args[1];
+            userStats.last_stock_date = args[2];
+          }
         }
         // UPDATE user_stats (減算)
         if (q.includes("total_stocks - 1") || q.includes("MAX(0, total_stocks - 1)")) {

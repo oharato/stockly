@@ -154,3 +154,24 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
 - **実行結果**:
   - 全 5 ファイル・23 テストがわずか **663ms** で全件合格。
 
+#### 8. Milestone 2: Workers AI 非同期問いかけ生成 & 継続ストリーク & UI 自動更新 (完了)
+
+- **Step 2-1: 継続ストリーク計算ロジック**:
+  - `apps/api/src/utils/streak.ts`: 日本時間 (JST, UTC+9) に基づく当日・前日・過去の日付差分計算、連続日数判定関数（`calculateStreak`, `getJSTDateString`）を実装。
+  - `apps/api/test/utils/streak.test.ts`: 初回投稿、当日連続投稿、翌日継続、2日以上ブランクによるリセット、最大記録更新の境界値テスト（6件全パス）。
+  - `POST /api/stocks` でストック投稿時に自動で `current_streak`, `max_streak`, `last_stock_date` を算出して D1 `user_stats` を更新。
+- **Step 2-2: Workers AI 非同期問いかけ生成サービス**:
+  - `apps/api/src/services/ai.ts`: Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`) を用いた内省問いかけ生成ロジック。
+  - 内省を深める 3 原則（1. 労いと共感、2. 思考を深める問い、3. 具体的で短文・親しみやすいトーン）のシステムプロンプト設計。AI 未バインド時の決定論的フォールバック機構も完備。
+  - `POST /api/stocks` で `c.executionCtx.waitUntil(aiPromise)` を活用し、クライアントへの HTTP 201 レスポンスを即座に返しつつ、バックグラウンドで AI 生成と `ai_comments` テーブルへの保存を並行実行。
+  - `apps/api/test/services/ai.test.ts`: AI サービス統合テスト（フォールバック & Workers AI バインディングの 2 件全パス）。
+- **Step 2-3: フロントエンド UI Polish & 自動反映 (Silent Polling)**:
+  - `apps/web/src/components/StockCard.svelte`: AI コメントがある場合は Teal グラデーション枠と Sparkles アイコンで美しく表示。投稿直後（30秒以内）で生成中の場合はパルスアニメーション付きの「AI パートナーが問いかけを考えています...」を表示。
+  - `apps/web/src/lib/stocks.svelte.ts`: `fetchStocks(silent = true)` による画面チラつきのないバックグラウンド再取得。ストック作成後、即座に `fetchStats()` でストリークを同期し、1.5秒後および3.5秒後に自動でサイレント取得を行って AI コメントをリアルタイム反映。
+  - `apps/web/src/components/Header.svelte` & `App.svelte`: 🔥 連続ストリーク日数バッジ、累計ストック数、リフレクティブレベルスコアのシームレス表示。
+- **Step 2-4: 統合検証 & E2E テスト拡充**:
+  - `apps/api/test/integration/stocks-workflow.test.ts`: ストリーク加算の結合テストを追加。
+  - `apps/web/test/e2e/api-e2e.test.ts`: 稼働中のローカルサーバーに対し、ストック作成から非同期 AI コメント生成のポーリング確認、ストリーク反映、削除クリーンアップまでの一連の E2E ライフサイクルテストを追加。
+  - `vp check`: 0 warnings, 0 errors, 50 files formatted。
+  - `vp test --run`: 7 ファイル・31 テストが **800〜900ms** で全件パス。
+  - `vp run -r build`: Rolldown による Web (77.59 kB) & API の高速プロダクションビルド完全成功。

@@ -14,8 +14,10 @@ class StockStore {
   error = $state<string | null>(null);
 
   // 一覧取得
-  async fetchStocks() {
-    this.isLoading = true;
+  async fetchStocks(silent = false) {
+    if (!silent) {
+      this.isLoading = true;
+    }
     this.error = null;
     try {
       const res = await client.api.stocks.$get();
@@ -25,7 +27,9 @@ class StockStore {
     } catch (err: unknown) {
       this.error = err instanceof Error ? err.message : "エラーが発生しました";
     } finally {
-      this.isLoading = false;
+      if (!silent) {
+        this.isLoading = false;
+      }
     }
   }
 
@@ -63,6 +67,17 @@ class StockStore {
       this.stocks = [newStock, ...this.stocks];
       this.stats.total_stocks += 1;
       this.stats.score += 10;
+
+      // サーバーから最新の統計（streak等）を取得
+      void this.fetchStats();
+
+      // 非同期のAIコメント生成完了を待ってバックグラウンドで再取得（1.5秒後 & 3.5秒後）
+      setTimeout(() => {
+        void this.fetchStocks(true);
+      }, 1500);
+      setTimeout(() => {
+        void this.fetchStocks(true);
+      }, 3500);
     } catch (err: unknown) {
       this.error = err instanceof Error ? err.message : "エラーが発生しました";
       throw err;

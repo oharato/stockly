@@ -56,3 +56,27 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - Zod + Hono RPC（`hc<AppType>`）によるフロント・API 完全型安全結線
   - `vp check`（Oxlint + Oxfmt + 型チェック）のパス確認
   - ブラウザおよびスマホでの PWA 動作テスト（投稿・削除・統計加算サイクル確認）
+
+---
+
+## 📋 Milestone 2 (AIコメント & ゲーミフィケーション) 詳細タスクリスト (完了 🎉)
+
+- [x] **2.1 継続ストリーク & ゲーミフィケーション計算**:
+  - JST (UTC+9) 基準の日付判定およびストリーク計算ロジック（`apps/api/src/utils/streak.ts`）
+  - 境界値・日付跨ぎ単体テスト 6 件（`apps/api/test/utils/streak.test.ts`）
+  - ストック投稿時に `current_streak`, `max_streak`, `last_stock_date`, `score (+10pt)` を D1 へ即時更新
+- [x] **2.2 Workers AI 非同期問いかけ生成 (バックエンド)**:
+  - Workers AI (`@cf/meta/llama-3.1-8b-instruct`) 連携サービス（`apps/api/src/services/ai.ts`）
+  - 内省を深める 3 原則（共感、深掘りの問いかけ、短文トーン）プロンプト設計とフォールバック
+  - `c.executionCtx.waitUntil` による非同期バックグラウンド処理（HTTP 201 即時返却）
+  - AI サービス結合テスト 2 件（`apps/api/test/services/ai.test.ts`）
+- [x] **2.3 フロントエンド UI Polish & リアルタイム反映**:
+  - `StockCard.svelte`: Teal グラデーション + Sparkles アイコンによる問いかけ表示
+  - 投稿直後の思考中アニメーション（`isThinking` パルス）
+  - `stocks.svelte.ts`: `fetchStocks(silent = true)` による画面チラつき防止バックグラウンド再取得（1.5s / 3.5s auto polling）
+  - `Header.svelte` & `App.svelte`: 🔥 連続ストリーク日数バッジ、累計ストック数、スコア表示
+- [x] **2.4 統合検証 & E2E テスト**:
+  - `apps/web/test/e2e/api-e2e.test.ts`: 実サーバーに対する非同期 AI 生成・ポーリング・ストリーク検証の E2E テスト
+  - `vp check`: 0 errors / 0 warnings、コードフォーマット完全適合
+  - `vp test --run`: 7 スイート 31 テスト全件パス (< 1s)
+  - `vp run -r build`: Rolldown による Web (77.59 kB) & API プロダクションビルド成功

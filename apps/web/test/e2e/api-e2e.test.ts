@@ -50,11 +50,28 @@ describe("Live Server E2E Critical Path Tests", () => {
     expect(found).toBeDefined();
     expect(found.content).toBe(testContent);
 
-    // 4. 統計情報の取得
+    // 4. 非同期 AI コメント生成の検証 (最大2秒待機して polling)
+    let aiCommentGenerated = false;
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const pollRes = await fetch(`${API_BASE_URL}/api/stocks`);
+      const pollData = (await pollRes.json()) as any;
+      const polledStock = pollData.stocks.find((s: any) => s.id === created.id);
+      if (polledStock?.ai_comment) {
+        aiCommentGenerated = true;
+        expect(typeof polledStock.ai_comment).toBe("string");
+        break;
+      }
+    }
+    expect(aiCommentGenerated).toBe(true);
+
+    // 5. 統計情報の取得 (スコア・ストリークが正しく加算されていること)
     const statsRes = await fetch(`${API_BASE_URL}/api/stats`);
     expect(statsRes.status).toBe(200);
     const statsData = (await statsRes.json()) as any;
     expect(statsData.total_stocks).toBeGreaterThan(0);
+    expect(statsData.score).toBeGreaterThanOrEqual(10);
+    expect(statsData.current_streak).toBeGreaterThanOrEqual(1);
 
     // 5. 作成したテストストックの削除クリーンアップ
     const deleteRes = await fetch(`${API_BASE_URL}/api/stocks/${created.id}`, {

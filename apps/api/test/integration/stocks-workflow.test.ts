@@ -52,11 +52,12 @@ describe("Stocks Full Integration Workflow", () => {
     expect(listData.stocks[0].id).toBe(created2.id);
     expect(listData.stocks[1].id).toBe(created1.id);
 
-    // 5. 統計の確認 (2件、スコア 20pt)
+    // 5. 統計の確認 (2件、スコア 20pt、ストリーク 1日)
     const statsRes = await app.request("/api/stats", {}, { DB: mockDB });
     const stats = (await statsRes.json()) as any;
     expect(stats.total_stocks).toBe(2);
     expect(stats.score).toBe(20);
+    expect(stats.current_streak).toBeGreaterThanOrEqual(1);
 
     // 6. 不正な入力（空文字）の拒否確認 (400 Bad Request、データ増加なし)
     const invalidPostRes = await app.request(
