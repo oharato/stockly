@@ -175,3 +175,18 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `vp check`: 0 warnings, 0 errors, 50 files formatted。
   - `vp test --run`: 7 ファイル・31 テストが **800〜900ms** で全件パス。
   - `vp run -r build`: Rolldown による Web (77.59 kB) & API の高速プロダクションビルド完全成功。
+
+#### 9. アーキテクチャリファクタリング: `src/db/` データアクセス層の抽出 (完了)
+
+- **背景**:
+  - `routes/stocks.ts` にベタ書きされていた D1 SQL クエリを、詳細設計書（`docs/detailed-design.md`）の構想に基づき専用の関数ベースデータアクセス層（`src/db/`）へ分離。
+- **分離内容**:
+  - `apps/api/src/db/stocks.ts`: `listStocks`, `createStockWithStats`, `deleteStockWithStats`
+  - `apps/api/src/db/stats.ts`: `getUserStats`, `getStreakContext`
+  - `apps/api/src/db/ai-comments.ts`: `insertAIComment`
+- **成果**:
+  - `routes/stocks.ts`: 113 行から 78 行へスリム化。HTTP ルーティング・バリデーション・非同期 AI オーケストレーションに専念。
+  - `services/ai.ts`: SQL 直接記述を廃止し、`insertAIComment` を利用。
+  - `apps/api/test/db/stocks.test.ts`: DB 層の個別動作を検証する単体テスト（1件）を追加。
+  - `vp check`: 34 ファイル検査で 0 warnings, 0 errors。
+  - `vp test --run`: 8 スイート・全 32 テストが **1.04s** で全件パス。

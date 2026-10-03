@@ -1,4 +1,5 @@
 import type { Bindings } from "../routes/stocks";
+import { insertAIComment } from "../db/ai-comments";
 
 const AI_SYSTEM_PROMPT = `あなたはユーザーの内省（学び・反省・気づき）を深める伴走コーチです。
 以下のルールに従って、日本語で1〜2文（80〜120文字程度）の簡潔な「問いかけ」または「共感・視点の転換」を返してください。
@@ -58,11 +59,12 @@ export async function generateAndSaveAIComment(
 
   // ai_comments テーブルへ保存
   try {
-    await env.DB.prepare(
-      `INSERT INTO ai_comments (id, stock_id, comment, created_at) VALUES (?, ?, ?, ?)`,
-    )
-      .bind(commentId, stockId, generatedComment, now)
-      .run();
+    await insertAIComment(env.DB, {
+      id: commentId,
+      stockId,
+      comment: generatedComment,
+      createdAt: now,
+    });
   } catch (err) {
     console.error("[Database] Failed to insert ai_comment:", err);
   }
