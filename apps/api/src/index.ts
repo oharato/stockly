@@ -5,15 +5,17 @@ import { stockRoutes } from "./routes/stocks";
 export type Bindings = {
   DB: D1Database;
   AI?: Ai;
+  STORAGE?: R2Bucket;
+  ASSETS?: Fetcher;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// 開発時の CORS 許可
+// CORS 設定（ローカル開発および本番カスタムドメイン）
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173", "https://stockly.ohchans.com"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
   }),
@@ -25,6 +27,14 @@ const routes = app
     return c.json({ status: "ok", time: new Date().toISOString() });
   })
   .route("/", stockRoutes);
+
+// 静的アセット（SPA PWA）フォールバック
+app.all("*", (c) => {
+  if (c.env.ASSETS) {
+    return c.env.ASSETS.fetch(c.req.raw);
+  }
+  return c.notFound();
+});
 
 export type AppType = typeof routes;
 export * from "./schemas/stock";

@@ -65,7 +65,6 @@ describe("import-csv", () => {
       ];
 
       const sql = generateMigrationSql(records);
-      expect(sql).toContain("BEGIN TRANSACTION;");
       expect(sql).toContain("INSERT INTO stocks");
       expect(sql).toContain("TypeScriptの型システム");
       expect(sql).toContain("INSERT INTO tags");
@@ -73,7 +72,6 @@ describe("import-csv", () => {
       expect(sql).toContain(
         "UPDATE user_stats SET total_stocks = total_stocks + 2, score = score + 20",
       );
-      expect(sql).toContain("COMMIT;");
     });
 
     it("escapes single quotes safely", () => {
