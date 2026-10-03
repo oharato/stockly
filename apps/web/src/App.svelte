@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Header from "./components/Header.svelte";
   import Timeline from "./components/Timeline.svelte";
   import SearchBar from "./components/SearchBar.svelte";
@@ -16,8 +17,8 @@
   // モーダル開閉状態
   let isModalOpen = $state(false);
 
-  // マウント時に API から実データを取得
-  $effect(() => {
+  // マウント時に一度だけ API から初期データを取得
+  onMount(() => {
     stockStore.fetchStocks();
     stockStore.fetchStats();
     stockStore.fetchRediscovery();

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { createStockSchema, createGoalSchema, type Stock, type Goal } from "../schemas/stock";
 import { calculateStreak, getJSTDateString } from "../utils/streak";
@@ -79,12 +80,33 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   })
 
   // ストック一覧取得（キーワード検索 & タグフィルター対応）
-  .get("/api/stocks", async (c) => {
-    const query = c.req.query("q");
-    const tag = c.req.query("tag");
-    const stocks = await listStocks(c.env.DB, query, tag);
-    return c.json({ stocks });
-  })
+  .get(
+    "/api/stocks",
+    zValidator(
+      "query",
+      z.object({
+        q: z.string().optional(),
+        tag: z.string().optional(),
+      }),
+    ),
+    async (c) => {
+      const { q, tag } = c.req.valid("query");
+      try {
+        const stocks = await listStocks(c.env.DB, q, tag);
+        return c.json({ stocks });
+      } catch (err: unknown) {
+        console.error("listStocks error:", err);
+        return c.json(
+          {
+            stocks: [],
+            error: "ストックの取得中にデータベースエラーが発生しました",
+            details: err instanceof Error ? err.message : String(err),
+          },
+          500,
+        );
+      }
+    },
+  )
 
   // 今日の再発見取得（1日1件固定）
   .get("/api/stocks/rediscovery", async (c) => {

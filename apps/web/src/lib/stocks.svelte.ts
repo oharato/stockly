@@ -39,6 +39,7 @@ class StockStore {
 
   searchQuery = $state("");
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  private searchAbortController: AbortController | null = null;
 
   rediscovery = $state<StockItem | null>(null);
   isRediscoveryRead = $state(false);
@@ -50,20 +51,57 @@ class StockStore {
     }
     this.error = null;
     this.isAuthError = false;
+
+    // 前回の保留中のリクエストをキャンセル
+    if (this.searchAbortController) {
+      this.searchAbortController.abort();
+    }
+    this.searchAbortController = new AbortController();
+    const signal = this.searchAbortController.signal;
+
     const q = query !== undefined ? query : this.searchQuery;
     const t = tag !== undefined ? tag : this.selectedTag;
     try {
       const queryParams: Record<string, string> = {};
-      if (q) queryParams.q = q;
-      if (t) queryParams.tag = t;
+      if (q && q.trim()) queryParams.q = q.trim();
+      if (t && t.trim()) queryParams.tag = t.trim();
 
-      const res = await client.api.stocks.$get({
-        query: queryParams,
-      });
-      if (!res.ok) throw new Error("ストックの取得に失敗しました");
+      const res = await client.api.stocks.$get(
+        {
+          query: queryParams,
+        },
+        {
+          init: { signal },
+        },
+      );
+
+      if (!res.ok) {
+        const status = res.status;
+        let detailMsg = `ストックの取得に失敗しました (HTTP ${status})`;
+        try {
+          const errData = (await res.json()) as { error?: string; details?: string };
+          if (errData.details) detailMsg += `: ${errData.details}`;
+          else if (errData.error) detailMsg += `: ${errData.error}`;
+        } catch {
+          try {
+            const raw = await res.text();
+            if (raw) detailMsg += `: ${raw.slice(0, 100)}`;
+          } catch {}
+        }
+        console.error("fetchStocks API error:", status, detailMsg);
+        throw new Error(detailMsg);
+      }
+
       const data = await res.json();
       this.stocks = data.stocks as StockItem[];
     } catch (err: unknown) {
+      // ユーザーの入力継続によるリクエスト中断はエラー扱いしない
+      if (
+        (err instanceof DOMException && err.name === "AbortError") ||
+        (err instanceof Error && err.name === "AbortError")
+      ) {
+        return;
+      }
       this.handleError(err, "エラーが発生しました");
     } finally {
       if (!silent) {
