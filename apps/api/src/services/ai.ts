@@ -1,22 +1,24 @@
 import type { Bindings } from "../routes/stocks";
 import { insertAIComment } from "../db/ai-comments";
 
-const AI_SYSTEM_PROMPT = `あなたはユーザーの内省（学び・反省・気づき）を深める伴走コーチです。
-以下のルールに従って、日本語で1〜2文（80〜120文字程度）の簡潔な「問いかけ」または「共感・視点の転換」を返してください。
-1. 説教や正解の押し付けをしない
-2. ユーザーの思考をさらに一歩広げるオープンクエスチョン（問い）を含める
-3. フレンドリーで温かみのある口調で`;
+const AI_SYSTEM_PROMPT = `あなたはユーザーの内省（学び・反省・気づき）を深める知的な伴走パートナーです。
+ユーザーのメモ内容を踏まえ、日本語で1〜2文（60〜120文字程度）の具体的でハッとする「問いかけ」または「視点の転換」を投げかけてください。
 
-// ローカルオフラインまたは AI バインディング未接続時のスマートフォールバック
+【厳守ルール】
+1. 「素晴らしい気づきですね」「日々の内省が〜」「お疲れ様です」などの定型的な前置きや挨拶・お世辞は絶対に含めず、本題から直接始めること。
+2. メモの具体的なキーワードや出来事・感情に寄り添い、本質的な原因・価値観・次の一歩を掘り下げる問いかけ（オープンクエスチョン）にすること。
+3. 説教や正解を決めつけるアドバイスはせず、ユーザー自身の思考を促す温かく思慮深いトーンにすること。`;
+
+// ローカルオフラインまたは AI バインディング未接続時のフォールバック
 const FALLBACK_PROMPTS = [
-  "素晴らしい気づきですね！この学びを次に活かすとしたら、明日の行動にどんな小さな工夫を加えられそうですか？",
-  "日々の内省が着実に前進を生んでいますね。もしこの経験を過去の自分にアドバイスするとしたら、何と伝えますか？",
-  "立ち止まって考える習慣が素晴らしいです。この出来事の背景にある、自分にとって一番大切にしたい価値観は何でしょうか？",
-  "実践したからこそ見えてきた視点ですね！この挑戦から得られた一番の収穫は何だと感じていますか？",
+  "この出来事を通じて、自分が本当に大切にしたいと感じた価値観は何ですか？",
+  "もし同じ状況が明日もう一度起きるとしたら、どんな小さな工夫を試してみたいですか？",
+  "この経験を振り返ってみて、自分の中で新しく見えてきた視点や気づきは何でしょうか？",
+  "この反省の奥にある、自分にとって一番譲れなかったポイントは何だと感じますか？",
+  "この出来事から得た学びを言葉にするなら、どんな一言になりますか？",
 ];
 
 function getFallbackComment(content: string): string {
-  // コンテンツのハッシュ値等で決定的に選択
   const hash = content.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return FALLBACK_PROMPTS[hash % FALLBACK_PROMPTS.length];
 }
@@ -35,20 +37,30 @@ export async function generateAndSaveAIComment(
 
   // Workers AI バインディングが利用可能な場合は呼び出しを試行
   if (env.AI) {
-    try {
-      const response = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
-        messages: [
-          { role: "system", content: AI_SYSTEM_PROMPT },
-          { role: "user", content: `私の内省メモ:\n${content}` },
-        ],
-        max_tokens: 150,
-      });
+    const models = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.2-3b-instruct"];
 
-      if (response && typeof response === "object" && "response" in response) {
-        generatedComment = (response as { response: string }).response.trim();
+    for (const model of models) {
+      try {
+        const response = (await env.AI.run(model, {
+          messages: [
+            { role: "system", content: AI_SYSTEM_PROMPT },
+            { role: "user", content: `私の内省メモ:\n${content}` },
+          ],
+          max_tokens: 150,
+        })) as {
+          response?: string;
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+
+        const text = response?.response?.trim() ?? response?.choices?.[0]?.message?.content?.trim();
+
+        if (text) {
+          generatedComment = text;
+          break;
+        }
+      } catch (err) {
+        console.warn(`[Workers AI] Model ${model} failed, trying next:`, err);
       }
-    } catch (err) {
-      console.warn("[Workers AI] Remote call skipped or failed, using fallback:", err);
     }
   }
 

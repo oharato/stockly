@@ -35,7 +35,7 @@ describe("AI Comment Service (Integration Tests)", () => {
     // Workers AI のモック
     const mockAI = {
       async run(model: string, options: any) {
-        expect(model).toBe("@cf/meta/llama-3.1-8b-instruct");
+        expect(model).toBe("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
         expect(options.messages).toBeDefined();
         return {
           response: "その挑戦の姿勢が素晴らしいですね！具体的にどんな一歩を踏み出しますか？",
