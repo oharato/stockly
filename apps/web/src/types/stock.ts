@@ -30,3 +30,15 @@ export interface UserStats {
   streak: number;
   rediscovery_count: number;
 }
+
+export interface WeeklySummaryItem {
+  id: string;
+  week_key: string;
+  start_date: string;
+  end_date: string;
+  stock_count: number;
+  summary: string;
+  key_themes?: string[];
+  created_at: string;
+  updated_at: string;
+}

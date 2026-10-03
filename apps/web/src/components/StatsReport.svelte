@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { StockItem, GoalItem, TagItem, UserStats } from "../types/stock";
+  import { onMount } from "svelte";
+  import type { StockItem, GoalItem, TagItem, UserStats, WeeklySummaryItem } from "../types/stock";
   import {
     Flame,
     Trophy,
@@ -17,6 +18,8 @@
     FileText,
     FileSpreadsheet,
     FileCode,
+    Bot,
+    RefreshCw,
   } from "lucide-svelte";
   import { getDateKey } from "../utils/date";
 
@@ -104,6 +107,47 @@
       isAddGoalOpen = false;
     } finally {
       isSubmittingGoal = false;
+    }
+  }
+
+  // 週次 AI サマリー
+  let weeklySummary = $state<WeeklySummaryItem | null>(null);
+  let recentStockCount = $state(0);
+  let isGeneratingSummary = $state(false);
+  let summaryError = $state<string | null>(null);
+
+  onMount(async () => {
+    try {
+      const res = await fetch("/api/summary/weekly");
+      if (res.ok) {
+        const data = (await res.json()) as {
+          summary: WeeklySummaryItem | null;
+          recentStockCount?: number;
+        };
+        weeklySummary = data.summary;
+        recentStockCount = data.recentStockCount || 0;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch weekly summary:", e);
+    }
+  });
+
+  async function handleGenerateSummary() {
+    if (isGeneratingSummary) return;
+    isGeneratingSummary = true;
+    summaryError = null;
+    try {
+      const res = await fetch("/api/summary/weekly/generate", { method: "POST" });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error || "サマリーの生成に失敗しました");
+      }
+      const data = (await res.json()) as WeeklySummaryItem;
+      weeklySummary = data;
+    } catch (err: unknown) {
+      summaryError = err instanceof Error ? err.message : "生成に失敗しました";
+    } finally {
+      isGeneratingSummary = false;
     }
   }
 
@@ -292,6 +336,98 @@
         </div>
       {/each}
     </div>
+  </section>
+
+  <!-- 週次 AI 内省サマリー -->
+  <section class="bg-gradient-to-br from-indigo-50/60 via-white to-teal-50/40 p-5 rounded-2xl border border-indigo-100/80 shadow-xs space-y-3.5">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+          <Sparkles class="w-4 h-4" />
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-slate-800">週次 AI 内省サマリー</h3>
+          <span class="text-[11px] text-slate-400 font-medium">直近1週間のストックから思考の深まりを分析</span>
+        </div>
+      </div>
+
+      {#if weeklySummary}
+        <button
+          type="button"
+          onclick={handleGenerateSummary}
+          disabled={isGeneratingSummary}
+          class="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 bg-white/80 hover:bg-white px-2.5 py-1 rounded-lg border border-indigo-100 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+        >
+          <RefreshCw class={`w-3 h-3 ${isGeneratingSummary ? "animate-spin" : ""}`} />
+          <span>{isGeneratingSummary ? "分析中..." : "再生成"}</span>
+        </button>
+      {/if}
+    </div>
+
+    {#if summaryError}
+      <div class="p-3 bg-rose-50 border border-rose-200/80 rounded-xl text-xs text-rose-700 font-medium">
+        {summaryError}
+      </div>
+    {/if}
+
+    {#if isGeneratingSummary}
+      <div class="flex flex-col items-center justify-center py-8 space-y-2.5">
+        <div class="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p class="text-xs font-bold text-indigo-900">AI が過去1週間の思考の軌跡を分析中...</p>
+        <p class="text-[11px] text-slate-400">注力テーマと成長の兆しをまとめています</p>
+      </div>
+    {:else if weeklySummary}
+      <div class="space-y-3 pt-1">
+        <!-- メタ情報バッジ -->
+        <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+          <span class="bg-indigo-100/80 text-indigo-700 px-2 py-0.5 rounded-md font-bold">
+            {weeklySummary.week_key}
+          </span>
+          <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">
+            {weeklySummary.start_date} 〜 {weeklySummary.end_date}
+          </span>
+          <span class="bg-teal-50 text-teal-700 border border-teal-200/60 px-2 py-0.5 rounded-md font-bold">
+            対象ストック: {weeklySummary.stock_count} 件
+          </span>
+        </div>
+
+        <!-- テーマタグ -->
+        {#if weeklySummary.key_themes && weeklySummary.key_themes.length > 0}
+          <div class="flex flex-wrap gap-1 pt-1">
+            {#each weeklySummary.key_themes as theme}
+              <span class="text-[11px] bg-white border border-indigo-200/70 text-indigo-800 px-2 py-0.5 rounded-lg font-semibold shadow-2xs">
+                🎯 #{theme}
+              </span>
+            {/each}
+          </div>
+        {/if}
+
+        <!-- サマリー本文 -->
+        <div class="bg-white/90 p-4 rounded-xl border border-indigo-100/70 text-xs text-slate-700 leading-relaxed space-y-2.5 shadow-2xs whitespace-pre-line">
+          {weeklySummary.summary}
+        </div>
+      </div>
+    {:else}
+      <div class="text-center py-6 border border-dashed border-indigo-200/80 bg-white/60 rounded-xl px-4 space-y-2.5">
+        <Bot class="w-8 h-8 text-indigo-300 mx-auto" />
+        <div>
+          <p class="text-xs font-bold text-slate-700">まだ今週のサマリーが生成されていません</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">
+            直近7日間に <span class="font-bold text-indigo-600 font-mono">{recentStockCount}</span> 件のストックが記録されています
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onclick={handleGenerateSummary}
+          disabled={recentStockCount === 0 || isGeneratingSummary}
+          class="inline-flex items-center gap-1.5 text-xs px-4 py-2 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-xs disabled:opacity-40 transition-all cursor-pointer"
+        >
+          <Sparkles class="w-3.5 h-3.5" />
+          <span>{recentStockCount === 0 ? "ストックを記録すると生成できます" : "✨ 週次 AI サマリーを生成する"}</span>
+        </button>
+      </div>
+    {/if}
   </section>
 
   <!-- テーマ・目標別 内省バランス -->

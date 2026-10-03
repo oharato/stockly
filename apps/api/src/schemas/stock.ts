@@ -67,3 +67,18 @@ export const userStatsSchema = z.object({
 });
 
 export type UserStats = z.infer<typeof userStatsSchema>;
+
+// 週次 AI サマリーレポートスキーマ
+export const weeklySummarySchema = z.object({
+  id: z.string(),
+  week_key: z.string(),
+  start_date: z.string(),
+  end_date: z.string(),
+  stock_count: z.number(),
+  summary: z.string(),
+  key_themes: z.array(z.string()).optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export type WeeklySummary = z.infer<typeof weeklySummarySchema>;

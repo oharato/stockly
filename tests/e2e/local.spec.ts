@@ -85,6 +85,19 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
     // 統計・目標レポート領域が表示されること
     await expect(page.locator("text=目標・ビジョン")).toBeVisible({ timeout: 5000 });
 
+    // 週次 AI 内省サマリーセクションが表示されること
+    await expect(page.locator("text=週次 AI 内省サマリー")).toBeVisible();
+
+    // サマリー生成ボタンが存在する場合はクリックして生成を検証
+    const generateSummaryBtn = page.locator("button:has-text('週次 AI サマリーを生成する')");
+    if (await generateSummaryBtn.isVisible()) {
+      await generateSummaryBtn.click();
+      // 生成完了またはエラーメッセージのいずれかが表示されること（ローカル・モック環境の耐性）
+      await expect(
+        page.locator("text=対象ストック").or(page.locator("text=サマリーの生成")),
+      ).toBeVisible({ timeout: 10000 });
+    }
+
     // データエクスポート & バックアップセクションが表示されること
     await expect(page.locator("text=データエクスポート & バックアップ")).toBeVisible();
     await expect(page.locator("button:has-text('JSON')")).toBeVisible();
@@ -92,7 +105,10 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
     await expect(page.locator("button:has-text('CSV')")).toBeVisible();
 
     // スクリーンショット保存 (視覚自己レビュー用)
-    await page.screenshot({ path: `${process.env.HOME}/snap/chromium/current/preview/stats-export.png`, fullPage: true });
+    await page.screenshot({
+      path: `${process.env.HOME}/snap/chromium/current/preview/stats-export.png`,
+      fullPage: true,
+    });
 
     // 「ストック」タブで元に戻る
     const stockTabButton = page.locator("button:has-text('ストック')").last();

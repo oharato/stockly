@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { createStockSchema, createGoalSchema, type Stock, type Goal } from "../schemas/stock";
+import {
+  createStockSchema,
+  createGoalSchema,
+  type Stock,
+  type Goal,
+  type WeeklySummary,
+} from "../schemas/stock";
 import { calculateStreak, getJSTDateString } from "../utils/streak";
 import { generateAndSaveAIComment } from "../services/ai";
 import {
@@ -13,6 +19,12 @@ import {
 import { getUserStats, getStreakContext, incrementRediscoveryCount } from "../db/stats";
 import { listGoals, createGoal, deleteGoal, listTags } from "../db/goals";
 import { formatAsMarkdown, formatAsCsv } from "../utils/export";
+import {
+  getLatestWeeklySummary,
+  saveWeeklySummary,
+  getRecentStocksForSummary,
+} from "../db/summary";
+import { generateWeeklySummaryText } from "../services/summary-ai";
 
 export type Bindings = {
   DB: D1Database;
@@ -280,4 +292,106 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   .get("/api/stats", async (c) => {
     const stats = await getUserStats(c.env.DB);
     return c.json(stats);
+  })
+
+  // 最新の週次 AI サマリー取得
+  .get("/api/summary/weekly", async (c) => {
+    try {
+      const summary = await getLatestWeeklySummary(c.env.DB);
+      const todayJST = getJSTDateString();
+
+      // 直近7日間のストック件数も取得して返却
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10);
+      const recentStocks = await getRecentStocksForSummary(c.env.DB, sevenDaysAgoStr);
+
+      return c.json({
+        summary,
+        recentStockCount: recentStocks.length,
+        todayJST,
+      });
+    } catch (err) {
+      console.error("getLatestWeeklySummary error:", err);
+      return c.json(
+        {
+          summary: null,
+          recentStockCount: 0,
+          error: "サマリーの取得中にエラーが発生しました",
+        },
+        500,
+      );
+    }
+  })
+
+  // 週次 AI サマリーのオンデマンド生成
+  .post("/api/summary/weekly/generate", async (c) => {
+    try {
+      const todayJST = getJSTDateString();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10);
+
+      // 直近7日間のストックを取得
+      const recentStocks = await getRecentStocksForSummary(c.env.DB, sevenDaysAgoStr);
+
+      if (recentStocks.length === 0) {
+        return c.json(
+          {
+            error: "過去7日間のストックがありません。ストックを記録してから生成してください。",
+          },
+          400,
+        );
+      }
+
+      // 週キーの計算 (例: 2026-W40)
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
+      const weekNum = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+      const weekKey = `${now.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+
+      // AI サマリー生成
+      const { summary: summaryText, keyThemes } = await generateWeeklySummaryText(
+        c.env,
+        recentStocks,
+      );
+
+      const id = crypto.randomUUID();
+      const nowISO = new Date().toISOString();
+
+      await saveWeeklySummary(c.env.DB, {
+        id,
+        week_key: weekKey,
+        start_date: sevenDaysAgoStr,
+        end_date: todayJST,
+        stock_count: recentStocks.length,
+        summary: summaryText,
+        key_themes: keyThemes,
+        now: nowISO,
+      });
+
+      const savedSummary: WeeklySummary = {
+        id,
+        week_key: weekKey,
+        start_date: sevenDaysAgoStr,
+        end_date: todayJST,
+        stock_count: recentStocks.length,
+        summary: summaryText,
+        key_themes: keyThemes,
+        created_at: nowISO,
+        updated_at: nowISO,
+      };
+
+      return c.json(savedSummary, 201);
+    } catch (err) {
+      console.error("generateWeeklySummary error:", err);
+      return c.json(
+        {
+          error: "週次サマリーの生成中にエラーが発生しました",
+          details: err instanceof Error ? err.message : String(err),
+        },
+        500,
+      );
+    }
   });
