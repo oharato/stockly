@@ -21,5 +21,6 @@
 - **[UI仕様書](docs/ui-spec.md)**: 各画面のUIレイアウト・コンポーネント仕様
 - **[システムアーキテクチャ設計書](docs/architecture.md)**: Cloudflare + Svelte 5 + Pulumi の全体構成
 - **[詳細設計書](docs/detailed-design.md)**: Svelte 5 Runes 状態管理、Zod + Hono RPC 型共有、非同期AIシーケンス、D1 スキーマ
+- **[開発計画 & ワークフロー方針書](docs/development-plan.md)**: スモールステップ開発サイクル、コミット規約、タスク分割計画
 - **[開発マイルストーン & ロードマップ](docs/milestones.md)**: MVP（コア体験）から段階的に進めるマイルストーン計画
 - **[Pulumi IaC 設計書](docs/iac-pulumi.md)**: Pulumi による Cloudflare リソース管理方針
