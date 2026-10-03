@@ -19,12 +19,14 @@ Stockly の本番用 Cloudflare クラウドリソース（D1 データベース
   - 必要な権限: `D1:Edit`, `R2:Edit`, `Workers Scripts:Edit`, `Account:Read`
 - ローカル環境: `mise` により Node LTS、pnpm、Pulumi CLI (`v3.257.0`) がインストール済みであること
 
-### 2. 環境変数および Pulumi スタック初期化
+### 2. 環境変数設定 (`.env`) & Pulumi スタック初期化
+
+認証情報はプロジェクトルートの `.env` で一元管理されます。`.mise.toml` によりシェルへ自動展開され、Pulumi やスクリプトからも自動読み込みされます。
 
 ```bash
-# 1. Cloudflare 認証情報の設定
-export CLOUDFLARE_API_TOKEN="your-api-token-here"
-export CLOUDFLARE_ACCOUNT_ID="your-account-id-here"
+# 1. ルートの .env.example から .env を作成し、実際の値を入力
+cp .env.example .env
+# エディタで .env を開き、CLOUDFLARE_API_TOKEN と CLOUDFLARE_ACCOUNT_ID を設定
 
 # 2. infra ディレクトリへ移動
 cd infra
@@ -32,9 +34,8 @@ cd infra
 # 3. Pulumi ログイン (ローカルステートまたは Pulumi Cloud)
 pulumi login --local
 
-# 4. 本番スタックの作成と設定
+# 4. 本番スタックの作成
 pulumi stack init prod
-pulumi config set accountId $CLOUDFLARE_ACCOUNT_ID
 ```
 
 ---

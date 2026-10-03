@@ -155,6 +155,22 @@ Options:
 }
 
 async function main() {
+  // Auto-load .env from root or cwd if present
+  const candidateEnvPaths = [
+    path.resolve(process.cwd(), ".env"),
+    path.resolve(process.cwd(), "../.env"),
+  ];
+  for (const envPath of candidateEnvPaths) {
+    if (fs.existsSync(envPath)) {
+      try {
+        process.loadEnvFile(envPath);
+        break;
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+
   const args = process.argv.slice(2);
   let filePath = path.resolve(process.cwd(), "ignore/stock.csv");
   let isDryRun = false;
