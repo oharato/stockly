@@ -136,18 +136,23 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
 
 ## 📋 Milestone 5 (Pulumi IaC 本番環境構築 & CI/CD) 詳細タスクリスト
 
-- [ ] **5.1 Pulumi IaC 定義 (`infra/`)**:
-  - `@pulumi/cloudflare` によるインフラコード化
-  - 本番用 Cloudflare D1 データベース (`stockly-db-prod`)
-  - 本番用 Cloudflare R2 バケット (`stockly-media-prod`)
-  - 本番用 Cloudflare Workers API (`stockly-api-prod`)
-  - Cloudflare Pages / Workers によるフロントエンド配信設定
-- [ ] **5.2 本番 D1 マイグレーション自動化**:
-  - Pulumi 実行またはデプロイスクリプトによる本番 D1 へのマイグレーション適用手順の確立
-- [ ] **5.3 GitHub Actions CI/CD パイプライン**:
-  - PR / Push 時の `vp check`, `vp test --run` 自動実行
-  - `main` ブランチマージ時の本番環境自動デプロイ
-- [ ] **5.4 セキュリティ & シングルユーザー認証**:
+- [x] **5.1 Pulumi IaC 定義 (`infra/`)**:
+  - `@pulumi/cloudflare` (v6.21.0) & `@pulumi/pulumi` (v3.257.0) によるインフラコード化
+  - 本番用 Cloudflare D1 データベース (`stockly-db-prod`) 定義
+  - 本番用 Cloudflare R2 バケット (`stockly-media-prod`, APAC) 定義
+  - `infra/README.md` によるプロビジョニング手順・環境変数設定ドキュメント化
+- [x] **5.2 過去データ移行スクリプト & 本番マイグレーション手順**:
+  - `scripts/import-csv.ts`: RFC 4180 準拠の CSV パース、JST ➔ UTC ISO 変換、D1 SQL トランザクション生成
+  - `--dry-run`, `--local`, `--remote` 対応およびローカル D1 でのリハーサル完了
+  - 単体テスト（`scripts/import-csv.test.ts`）全 8 件パス
+- [x] **5.3 GitHub Actions CI パイプライン**:
+  - `.github/workflows/ci.yml`: Push / PR 時に Node 24 + pnpm + Vite+ (`vp`) を高速セットアップし、`vp check`, `vp test --run`, `vp run -r build` を自動実行
+- [ ] **5.4 本番 Cloudflare プロビジョニング実行 & デプロイ**:
+  - ユーザーの Cloudflare API Token / Account ID による `pulumi up` 実行
+  - 本番 D1 へのマイグレーション適用 (`npx wrangler d1 migrations apply stockly-db-prod --remote`)
+  - 本番 D1 への過去データインポート実行 (`pnpm import:csv --remote --db stockly-db-prod`)
+  - Cloudflare Workers API & Pages フロントエンドの本番デプロイ
+- [ ] **5.5 セキュリティ & シングルユーザー認証**:
   - Cloudflare Access (Zero Trust) による個人専用保護、または PIN パスコード保護の設定
 
 ---

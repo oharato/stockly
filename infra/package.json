@@ -1,0 +1,12 @@
+{
+  "name": "@stockly/infra",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@pulumi/cloudflare": "6.21.0",
+    "@pulumi/pulumi": "3.257.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3"
+  }
+}

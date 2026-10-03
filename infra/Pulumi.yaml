@@ -1,0 +1,3 @@
+name: stockly-infra
+runtime: nodejs
+description: Cloudflare Infrastructure for Stockly (D1, R2, Workers)
