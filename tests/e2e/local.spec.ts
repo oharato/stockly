@@ -98,6 +98,12 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
       ).toBeVisible({ timeout: 10000 });
     }
 
+    // 毎日の内省リマインダー通知セクションが表示されること
+    await expect(page.locator("text=毎日の内省リマインダー")).toBeVisible();
+    await expect(
+      page.locator("button:has-text('通知を許可')").or(page.locator("text=通知時刻:")),
+    ).toBeVisible();
+
     // データエクスポート & バックアップセクションが表示されること
     await expect(page.locator("text=データエクスポート & バックアップ")).toBeVisible();
     await expect(page.locator("button:has-text('JSON')")).toBeVisible();

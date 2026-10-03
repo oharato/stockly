@@ -66,7 +66,12 @@ class StockStore {
   }
 
   // 一覧取得（検索クエリ & タグフィルター対応）
-  async fetchStocks(silent = false, query?: string, tag?: string | null, retryCount = 0) {
+  async fetchStocks(
+    silent = false,
+    query?: string,
+    tag?: string | null,
+    retryCount = 0,
+  ): Promise<void> {
     if (!silent) {
       this.isLoading = true;
     }
@@ -124,7 +129,9 @@ class StockStore {
           }
           // 初回ロードでキャッシュがない場合は1.2秒待って自動リトライ (最大2回)
           if (retryCount < 2) {
-            console.warn(`[429 Throttled] Retrying initial load in 1.2s (attempt ${retryCount + 1}/2)...`);
+            console.warn(
+              `[429 Throttled] Retrying initial load in 1.2s (attempt ${retryCount + 1}/2)...`,
+            );
             await new Promise((r) => setTimeout(r, 1200));
             return await this.fetchStocks(silent, query, tag, retryCount + 1);
           }

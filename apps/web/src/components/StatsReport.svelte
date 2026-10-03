@@ -20,8 +20,20 @@
     FileCode,
     Bot,
     RefreshCw,
+    Bell,
+    BellRing,
   } from "lucide-svelte";
   import { getDateKey } from "../utils/date";
+  import {
+    isNotificationSupported,
+    getNotificationPermission,
+    requestNotificationPermission,
+    isReminderEnabled,
+    setReminderEnabled,
+    getReminderTime,
+    setReminderTime,
+    sendLocalReminder,
+  } from "../lib/notifications";
 
   interface Props {
     stats: UserStats;
@@ -116,7 +128,19 @@
   let isGeneratingSummary = $state(false);
   let summaryError = $state<string | null>(null);
 
+  // 内省リマインダー通知
+  let notificationSupported = $state(false);
+  let notificationPermission = $state<NotificationPermission>("default");
+  let reminderEnabled = $state(false);
+  let reminderTime = $state("21:00");
+  let testNotificationSent = $state(false);
+
   onMount(async () => {
+    notificationSupported = isNotificationSupported();
+    notificationPermission = getNotificationPermission();
+    reminderEnabled = isReminderEnabled();
+    reminderTime = getReminderTime();
+
     try {
       const res = await fetch("/api/summary/weekly");
       if (res.ok) {
@@ -131,6 +155,33 @@
       console.warn("Failed to fetch weekly summary:", e);
     }
   });
+
+  async function handleToggleReminder() {
+    if (notificationPermission !== "granted") {
+      const granted = await requestNotificationPermission();
+      notificationPermission = getNotificationPermission();
+      if (!granted) return;
+    }
+    reminderEnabled = !reminderEnabled;
+    setReminderEnabled(reminderEnabled);
+  }
+
+  function handleReminderTimeChange(e: Event) {
+    const val = (e.target as HTMLInputElement).value;
+    reminderTime = val;
+    setReminderTime(val);
+  }
+
+  async function handleSendTestNotification() {
+    testNotificationSent = true;
+    await sendLocalReminder(
+      "【テスト通知】今日の学びをストックしよう 💡",
+      "この通知をタップして、今日の内省を1行メモしてみましょう！",
+    );
+    setTimeout(() => {
+      testNotificationSent = false;
+    }, 3000);
+  }
 
   async function handleGenerateSummary() {
     if (isGeneratingSummary) return;
@@ -594,7 +645,79 @@
     {/if}
   </section>
 
-  <!-- 5. データエクスポート & バックアップ -->
+  <!-- 5. 毎日の内省リマインダー通知 -->
+  <section class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+          <Bell class="w-4 h-4" />
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-slate-800">毎日の内省リマインダー</h3>
+          <p class="text-[11px] text-slate-400">決まった時間に通知を受け取り、内省習慣を継続させます</p>
+        </div>
+      </div>
+
+      {#if notificationPermission === "granted"}
+        <!-- 有効・無効トグルボタン -->
+        <button
+          type="button"
+          onclick={handleToggleReminder}
+          class={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+            reminderEnabled ? "bg-teal-600" : "bg-slate-200"
+          }`}
+          role="switch"
+          aria-checked={reminderEnabled}
+          aria-label="リマインダー通知の有効・無効切り替え"
+        >
+          <span
+            class={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+              reminderEnabled ? "translate-x-4" : "translate-x-0"
+            }`}
+          ></span>
+        </button>
+      {/if}
+    </div>
+
+    {#if notificationPermission !== "granted"}
+      <div class="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3 flex items-center justify-between gap-3">
+        <p class="text-xs text-amber-800 font-medium">
+          ブラウザの通知を許可すると、毎晩のリマインダーを受け取ることができます。
+        </p>
+        <button
+          type="button"
+          onclick={handleToggleReminder}
+          class="shrink-0 text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-2xs transition-colors cursor-pointer"
+        >
+          通知を許可
+        </button>
+      </div>
+    {:else}
+      <div class="flex items-center justify-between pt-1 gap-2 border-t border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-700">通知時刻:</span>
+          <input
+            type="time"
+            value={reminderTime}
+            onchange={handleReminderTimeChange}
+            class="text-xs px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:border-teal-500"
+          />
+        </div>
+
+        <button
+          type="button"
+          onclick={handleSendTestNotification}
+          disabled={testNotificationSent}
+          class="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <BellRing class="w-3 h-3" />
+          <span>{testNotificationSent ? "送信しました！" : "テスト通知"}</span>
+        </button>
+      </div>
+    {/if}
+  </section>
+
+  <!-- 6. データエクスポート & バックアップ -->
   <section class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
     <div class="flex items-center gap-2 mb-2">
       <div class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
