@@ -70,13 +70,16 @@
 ### 2.4 AI機能 (Stockly-AI)
 
 - **基盤**: **Cloudflare Workers AI**
-  - モデル候補: `@cf/meta/llama-3.1-8b-instruct`
-  - 投稿時に非同期（`ctx.waitUntil`）で共感・内省コメントを自動生成。
+  - プライマリモデル: **`@cf/meta/llama-3.3-70b-instruct-fp8-fast`**（700億パラメータ、高精度な日本語内省コメント）
+  - セカンダリモデル（フォールバック）: **`@cf/meta/llama-3.2-3b-instruct`**
+  - 詳細な選定理由・実測ベンチマーク: **[AIモデル選定 & ベンチマーク調査報告書](ai-model-benchmark.md)** を参照
+  - 投稿時に非同期（`ctx.waitUntil`）でユーザーの思考を深めるオープンクエスチョンを自動生成。
 
-### 2.5 IaC (Infrastructure as Code)
+### 2.5 IaC (Infrastructure as Code) & 本番配信
 
+- **ドメイン**: **`https://stockly.ohchans.com`**（Cloudflare Workers Static Assets 単一オリジン配信）
 - **ツール**: **Pulumi** (TypeScript: `@pulumi/pulumi`, `@pulumi/cloudflare`)
-- D1 Database / R2 Bucket / KV / Workers を完全コード管理。
+- D1 Database (`stockly-db-prod`) / R2 Bucket (`stockly-media-prod`) を完全コード管理。
 
 ---
 

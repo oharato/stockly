@@ -25,69 +25,81 @@
 
 ---
 
-## 2. Pulumi コード構成例 (`infra/index.ts`)
+## 2. Pulumi 実装コード構成 (`infra/index.ts`)
+
+Stockly では、ルートの `.env`（`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`）を自動検出し、Cloudflare Provider を通じて D1 データベースおよび R2 バケット（APAC リージョン）を自動プロビジョニングします。
 
 ```typescript
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as pulumi from "@pulumi/pulumi";
 import * as cloudflare from "@pulumi/cloudflare";
 
+// .env 自動読み込み
+const baseDir = import.meta.dirname ?? process.cwd();
+const candidateEnvPaths = [
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "../.env"),
+  path.resolve(baseDir, "../.env"),
+  path.resolve(baseDir, ".env"),
+];
+for (const envPath of candidateEnvPaths) {
+  if (fs.existsSync(envPath)) {
+    try {
+      process.loadEnvFile(envPath);
+      break;
+    } catch {}
+  }
+}
+
 const config = new pulumi.Config();
-const accountId = config.require("cloudflareAccountId");
+const apiToken = process.env.CLOUDFLARE_API_TOKEN ?? config.get("apiToken");
+const accountId = config.get("accountId") ?? process.env.CLOUDFLARE_ACCOUNT_ID;
 
-// 1. D1 Database の作成
-const stocklyDb = new cloudflare.D1Database("stockly-db", {
-  accountId: accountId,
-  name: "stockly-production-db",
+const provider = new cloudflare.Provider("cloudflare-provider", {
+  apiToken: apiToken,
 });
 
-// 2. R2 Bucket の作成 (画像保存用)
-const stocklyImagesBucket = new cloudflare.R2Bucket("stockly-images", {
-  accountId: accountId,
-  name: "stockly-production-images",
-  location: "apac", // アジア太平洋リージョン
-});
+const environment = config.get("environment") ?? "prod";
 
-// 3. KV Namespace の作成 (キャッシュ・セッション用)
-const stocklyKv = new cloudflare.WorkersKvNamespace("stockly-kv", {
-  accountId: accountId,
-  title: "stockly-production-kv",
-});
-
-// 4. Cloudflare Workers API の設定とバインディング
-const stocklyApiWorker = new cloudflare.WorkersScript("stockly-api", {
-  accountId: accountId,
-  name: "stockly-api-worker",
-  content: "...worker bundle content...",
-  compatibilityDate: "2024-09-23",
-  compatibilityFlags: ["nodejs_compat"],
-  d1DatabaseBindings: [
-    {
-      name: "DB",
-      databaseId: stocklyDb.id,
-    },
-  ],
-  r2BucketBindings: [
-    {
-      name: "IMAGES_BUCKET",
-      bucketName: stocklyImagesBucket.name,
-    },
-  ],
-  kvNamespaceBindings: [
-    {
-      name: "KV",
-      namespaceId: stocklyKv.id,
-    },
-  ],
-  // Workers AI のバインディング設定
-  ai: {
-    name: "AI",
+// 1. Cloudflare D1 Database
+export const d1Database = new cloudflare.D1Database(
+  `stockly-db-${environment}`,
+  {
+    accountId: accountId as string,
+    name: `stockly-db-${environment}`,
   },
-});
+  { provider },
+);
 
-// 出力エクスポート
-export const d1DatabaseId = stocklyDb.id;
-export const r2BucketName = stocklyImagesBucket.name;
-export const kvNamespaceId = stocklyKv.id;
+// 2. Cloudflare R2 Bucket (APAC)
+export const r2Bucket = new cloudflare.R2Bucket(
+  `stockly-media-${environment}`,
+  {
+    accountId: accountId as string,
+    name: `stockly-media-${environment}`,
+    location: "apac",
+  },
+  { provider },
+);
+
+// Stack Outputs
+export const outputs = {
+  environment,
+  d1DatabaseId: d1Database.id,
+  d1DatabaseName: d1Database.name,
+  r2BucketName: r2Bucket.name,
+};
+```
+
+### 2.1 デプロイ & リソース作成コマンド
+
+```bash
+# インフラプロビジョニング (Pulumi 本番スタック)
+pnpm run infra:up
+
+# プロビジョニング結果の確認
+pnpm run infra:preview
 ```
 
 ---

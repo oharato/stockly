@@ -45,7 +45,7 @@
   - バックエンドで定義した Zod スキーマと `AppType` をフロントエンドで型のみ参照し、完全な End-to-End 型安全性を保つ。
 - **データベース**: **Cloudflare D1** (SQLite)
 - **メディアストレージ**: **Cloudflare R2** (Milestone 3 以降)
-- **AIエンジン**: **Cloudflare Workers AI** (`@cf/meta/llama-3.1-8b-instruct`)
+- **AIエンジン**: **Cloudflare Workers AI** (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`、予備: `@cf/meta/llama-3.2-3b-instruct`)
 - **IaC (インフラコード化)**: **Pulumi** (TypeScript: `@pulumi/cloudflare`)
 
 ---

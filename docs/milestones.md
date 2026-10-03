@@ -16,7 +16,7 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   │  ・PWA ホーム画面インストール対応 & モバイルファーストUI
   ▼
 [ Milestone 2: AIコメント & ゲーミフィケーション (確定) ]
-  │  ・Cloudflare Workers AI (Llama 3.1) による非同期コメント生成 (ctx.waitUntil)
+  │  ・Cloudflare Workers AI (Llama 3.3 70B / 3.2 3B) による非同期コメント生成 (ctx.waitUntil)
   │  ・スコア加算 (+10pt) & ストリーク判定 (連続記録日数)
   │  ・ホーム画面レイアウト (今日のストック、AIコメントアコーディオン、目標UI)
   ▼
@@ -66,7 +66,7 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - 境界値・日付跨ぎ単体テスト 6 件（`apps/api/test/utils/streak.test.ts`）
   - ストック投稿時に `current_streak`, `max_streak`, `last_stock_date`, `score (+10pt)` を D1 へ即時更新
 - [x] **2.2 Workers AI 非同期問いかけ生成 (バックエンド)**:
-  - Workers AI (`@cf/meta/llama-3.1-8b-instruct`) 連携サービス（`apps/api/src/services/ai.ts`）
+  - Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, 予備 `@cf/meta/llama-3.2-3b-instruct`）連携サービス（`apps/api/src/services/ai.ts`）
   - 内省を深める 3 原則（共感、深掘りの問いかけ、短文トーン）プロンプト設計とフォールバック
   - `c.executionCtx.waitUntil` による非同期バックグラウンド処理（HTTP 201 即時返却）
   - AI サービス結合テスト 2 件（`apps/api/test/services/ai.test.ts`）
@@ -147,11 +147,12 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - 単体テスト（`scripts/import-csv.test.ts`）全 8 件パス
 - [x] **5.3 GitHub Actions CI パイプライン**:
   - `.github/workflows/ci.yml`: Push / PR 時に Node 24 + pnpm + Vite+ (`vp`) を高速セットアップし、`vp check`, `vp test --run`, `vp run -r build` を自動実行
-- [ ] **5.4 本番 Cloudflare プロビジョニング実行 & デプロイ**:
-  - ユーザーの Cloudflare API Token / Account ID による `pulumi up` 実行
-  - 本番 D1 へのマイグレーション適用 (`npx wrangler d1 migrations apply stockly-db-prod --remote`)
-  - 本番 D1 への過去データインポート実行 (`pnpm import:csv --remote --db stockly-db-prod`)
-  - Cloudflare Workers API & Pages フロントエンドの本番デプロイ
+- [x] **5.4 本番 Cloudflare プロビジョニング実行 & カスタムドメインデプロイ**:
+  - `pulumi up` による本番 D1 (`stockly-db-prod`) & R2 (`stockly-media-prod`) 作成完了
+  - 本番 D1 へのマイグレーション適用 (`npx wrangler d1 migrations apply stockly-db-prod --remote`) 完了
+  - 過去データ 46 件の本番インポート実行 (`pnpm import:csv --remote --db stockly-db-prod`) 完了
+  - カスタムドメイン **`https://stockly.ohchans.com`** に Cloudflare Workers Static Assets で全スタック（PWA + API）を一元デプロイ完了
+  - Workers AI を最新 **Meta Llama 3.3 70B** にアップグレードし、知的なオープンクエスチョン生成を確認
 - [ ] **5.5 セキュリティ & シングルユーザー認証**:
   - Cloudflare Access (Zero Trust) による個人専用保護、または PIN パスコード保護の設定
 

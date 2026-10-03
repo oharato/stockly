@@ -11,7 +11,7 @@
 | **フロントエンド**          | **Svelte 5 (Runes) + Tailwind CSS + Vite+**                                          | 仮想DOMなしによる**最速起動 & 超軽量バンドル**。React Hooksの依存関係・再レンダリング問題のない直感的なリアクティビティ。 |
 | **利用形態 & 認証**         | **自分専用（シングルユーザー）**<br>Cloudflare Access / パスコード保護               | 個人用内省ツールとして素早く立ち上げるため。                                                                              |
 | **リポジトリ構成**          | **pnpm Monorepo + Vite+ (`vp`)**<br>`apps/web` (Svelte 5 PWA) + `apps/api` (Workers) | Vite+ による高速リント・ビルドと、Workers API / Pulumi の責務分離を両立。                                                 |
-| **AIコメント (Stockly-AI)** | **Cloudflare Workers AI (Llama 3.1)**<br>※非同期バックグラウンド生成                 | 投稿時は即座に保存・画面クローズし、記録の軽快さを最優先。コメントは裏側（`ctx.waitUntil`）で生成。                       |
+| **AIコメント (Stockly-AI)** | **Cloudflare Workers AI (Llama 3.3 70B / 3.2 3B)**<br>※非同期バックグラウンド生成    | 投稿時は即座に保存・画面クローズし、記録の軽快さを最優先。コメントは裏側（`ctx.waitUntil`）で生成。                       |
 | **再発見 (Rediscovery)**    | **1日1件固定（「今日の再発見」）**                                                   | 画面を開くたびに変わるのではなく、その日の振り返りテーマとしてじっくり内省を促す。                                        |
 | **オフライン方針**          | **MVPはオンライン前提**                                                              | 通信エラー時はリトライ案内。複雑なオフライン同期は後続フェーズへ。                                                        |
 | **画像添付 (R2)**           | **Milestone 3 で実装**                                                               | Milestone 1（MVP）はテキスト入力とコア体験の確立に集中。                                                                  |
@@ -208,7 +208,7 @@ sequenceDiagram
     participant Modal as StockInputModal.svelte
     participant API as Hono (Workers API)
     participant D1 as Cloudflare D1
-    participant AI as Workers AI (Llama 3.1)
+    participant AI as Workers AI (Llama 3.3 70B)
 
     User->>Modal: 本文入力 & 「ストックする」タップ
     Modal->>API: POST /api/stocks { content }

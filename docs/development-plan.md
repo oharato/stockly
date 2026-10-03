@@ -161,7 +161,7 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `apps/api/test/utils/streak.test.ts`: 初回投稿、当日連続投稿、翌日継続、2日以上ブランクによるリセット、最大記録更新の境界値テスト（6件全パス）。
   - `POST /api/stocks` でストック投稿時に自動で `current_streak`, `max_streak`, `last_stock_date` を算出して D1 `user_stats` を更新。
 - **Step 2-2: Workers AI 非同期問いかけ生成サービス**:
-  - `apps/api/src/services/ai.ts`: Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`) を用いた内省問いかけ生成ロジック。
+  - `apps/api/src/services/ai.ts`: Cloudflare Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, フォールバック `@cf/meta/llama-3.2-3b-instruct`）を用いた内省問いかけ生成ロジック。
   - 内省を深める 3 原則（1. 労いと共感、2. 思考を深める問い、3. 具体的で短文・親しみやすいトーン）のシステムプロンプト設計。AI 未バインド時の決定論的フォールバック機構も完備。
   - `POST /api/stocks` で `c.executionCtx.waitUntil(aiPromise)` を活用し、クライアントへの HTTP 201 レスポンスを即座に返しつつ、バックグラウンドで AI 生成と `ai_comments` テーブルへの保存を並行実行。
   - `apps/api/test/services/ai.test.ts`: AI サービス統合テスト（フォールバック & Workers AI バインディングの 2 件全パス）。
