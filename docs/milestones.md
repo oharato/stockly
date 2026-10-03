@@ -103,3 +103,60 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - フロントエンド: `StockInputModal.svelte` での画像添付プレビュー・削除機能
   - `StockCard.svelte` でのサムネイル画像表示 & タップで拡大表示するフルスクリーンライトボックスモーダル
   - Live E2E テスト (`apps/web/test/e2e/api-e2e.test.ts`) での画像アップロード・取得・ストック添付の全フロー自動検証
+
+---
+
+## 📋 Milestone 4 (目標・ビジョン管理 & レポート画面) 詳細タスクリスト (次期開発 🚀)
+
+- [ ] **4.1 テーマ・目標タグのデータモデル & CRUD API**:
+  - D1 `tags` テーブルの活用 & `goals` テーブルマイグレーション（目標タイトル、ビジョン分類、カラー、ステータス）
+  - API エンドポイント実装:
+    - `GET /api/tags`: 使用中タグ一覧とストック件数の集計取得
+    - `GET /api/goals`, `POST /api/goals`, `PUT /api/goals/:id`, `DELETE /api/goals/:id`: 目標・ビジョンの CRUD
+    - `POST /api/stocks`: リクエストボディ `tagNames` に対応し、ストック作成と同時に `tags` レコードをバッチ保存
+    - `GET /api/stocks?tag=...`: 特定タグによるフィルタリングクエリのサポート
+  - API 単体・結合テスト（`apps/api/test/`）の実装
+- [ ] **4.2 フロントエンド: タグ付け & タイムラインフィルター**:
+  - `StockInputModal.svelte`: 「+ テーマ・目標を設定」UI、登録済みタグからのワンタップ選択、新規タグ追加
+  - `StockCard.svelte`: カード内にタグチップ（`#エンジニアリング`, `#健康` 等）を表示
+  - `Timeline.svelte`: 検索バー下に水平スクロール可能なタグフィルターチップ列（「すべて」「#タグA」「#タグB」...）を配置
+  - `stocks.svelte.ts`: 選択中タグの状態管理とフィルタリング連動
+- [ ] **4.3 「ふりかえり」レポート & 統計ダッシュボード画面**:
+  - `apps/web/src/components/StatsReport.svelte`（ふりかえりタブの本格実装）:
+    - **活動推移チャート**: 直近7日間・30日間のストック数を可視化する軽量バーグラフ（CSS/SVG）
+    - **内省バランス**: テーマ・目標別のストック構成比率（プログレスバー / シェア分布）
+    - **4大指標サマリー**: スコア（pt）、累計ストック（件）、今日の再発見読了（回）、連続ストリーク（日）
+    - **ビジョン & 目標カード**: 設定中の目標一覧、進捗確認、新規目標の追加モーダル
+- [ ] **4.4 品質検証 & E2E テスト & 視覚自己検証 (`AGENTS.md` Rule 7 準拠)**:
+  - `apps/web/test/e2e/api-e2e.test.ts`: 目標・タグ作成 ➔ ストック紐付け ➔ タグ絞り込み ➔ レポート統計取得の全サイクル自動検証
+  - ヘッドレス Chromium (`/snap/bin/chromium --headless`) による視覚自己レビュー（タグの折り返し、チャート描画、モバイル解像度での崩れ確認）
+  - `vp check` & `vp test --run` 完全パス確認
+
+---
+
+## 📋 Milestone 5 (Pulumi IaC 本番環境構築 & CI/CD) 詳細タスクリスト
+
+- [ ] **5.1 Pulumi IaC 定義 (`infra/`)**:
+  - `@pulumi/cloudflare` によるインフラコード化
+  - 本番用 Cloudflare D1 データベース (`stockly-db-prod`)
+  - 本番用 Cloudflare R2 バケット (`stockly-media-prod`)
+  - 本番用 Cloudflare Workers API (`stockly-api-prod`)
+  - Cloudflare Pages / Workers によるフロントエンド配信設定
+- [ ] **5.2 本番 D1 マイグレーション自動化**:
+  - Pulumi 実行またはデプロイスクリプトによる本番 D1 へのマイグレーション適用手順の確立
+- [ ] **5.3 GitHub Actions CI/CD パイプライン**:
+  - PR / Push 時の `vp check`, `vp test --run` 自動実行
+  - `main` ブランチマージ時の本番環境自動デプロイ
+- [ ] **5.4 セキュリティ & シングルユーザー認証**:
+  - Cloudflare Access (Zero Trust) による個人専用保護、または PIN パスコード保護の設定
+
+---
+
+## 📋 Milestone 6 (追加拡張 & 体験向上) 詳細タスクリスト (Future Polish)
+
+- [ ] **6.1 Web Push 通知 / リマインダー**:
+  - 毎晩の振り返りリマインダー通知（Service Worker + Push API）
+- [ ] **6.2 データエクスポート & バックアップ**:
+  - JSON / Markdown 形式での一括エクスポート機能
+- [ ] **6.3 週次 AI サマリーレポート**:
+  - 1週間のストックを Workers AI が統合要約し、週末の成長サマリーを提示
