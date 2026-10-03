@@ -14,9 +14,69 @@ import { getUserStats, getStreakContext, incrementRediscoveryCount } from "../db
 export type Bindings = {
   DB: D1Database;
   AI?: Ai;
+  STORAGE?: R2Bucket;
 };
 
 export const stockRoutes = new Hono<{ Bindings: Bindings }>()
+  // 画像アップロード (Cloudflare R2)
+  .post("/api/upload", async (c) => {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: "画像ファイルが指定されていません" }, 400);
+    }
+
+    // 5MB 制限
+    if (file.size > 5 * 1024 * 1024) {
+      return c.json({ error: "ファイルサイズは5MB以内にしてください" }, 400);
+    }
+
+    // MIME タイプ検証
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      return c.json({ error: "対応していない画像形式です (JPEG, PNG, WebP, GIF のみ)" }, 400);
+    }
+
+    const ext = file.name.split(".").pop() || "jpg";
+    const key = `img-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+
+    if (c.env.STORAGE) {
+      const buffer = await file.arrayBuffer();
+      await c.env.STORAGE.put(key, buffer, {
+        httpMetadata: { contentType: file.type },
+      });
+    }
+
+    return c.json(
+      {
+        key,
+        url: `/api/media/${key}`,
+      },
+      201,
+    );
+  })
+
+  // 画像配信 (Cloudflare R2)
+  .get("/api/media/:key", async (c) => {
+    const key = c.req.param("key");
+    if (!c.env.STORAGE) {
+      return c.text("Storage not configured", 404);
+    }
+
+    const object = await c.env.STORAGE.get(key);
+    if (!object) {
+      return c.text("Media not found", 404);
+    }
+
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set("etag", object.httpEtag);
+    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+
+    return new Response(object.body, { headers });
+  })
+
   // ストック一覧取得（キーワード検索対応）
   .get("/api/stocks", async (c) => {
     const query = c.req.query("q");
@@ -39,7 +99,7 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
 
   // ストック新規作成
   .post("/api/stocks", zValidator("json", createStockSchema), async (c) => {
-    const { content } = c.req.valid("json");
+    const { content, imageKeys } = c.req.valid("json");
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const todayJST = getJSTDateString();
@@ -57,6 +117,7 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     await createStockWithStats(c.env.DB, {
       id,
       content,
+      imageKeys,
       now,
       newStreak: streakResult.newStreak,
       newMaxStreak: streakResult.newMaxStreak,
@@ -66,6 +127,7 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     const createdStock: Stock = {
       id,
       content,
+      image_keys: imageKeys && imageKeys.length > 0 ? JSON.stringify(imageKeys) : null,
       created_at: now,
       updated_at: now,
     };

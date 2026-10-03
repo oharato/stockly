@@ -36,6 +36,7 @@ export async function listStocks(db: D1Database, query?: string): Promise<Stock[
 export interface CreateStockWithStatsParams {
   id: string;
   content: string;
+  imageKeys?: string[] | null;
   now: string;
   newStreak: number;
   newMaxStreak: number;
@@ -49,10 +50,15 @@ export async function createStockWithStats(
   db: D1Database,
   params: CreateStockWithStatsParams,
 ): Promise<void> {
+  const imageKeysJson =
+    params.imageKeys && params.imageKeys.length > 0 ? JSON.stringify(params.imageKeys) : null;
+
   await db.batch([
     db
-      .prepare(`INSERT INTO stocks (id, content, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-      .bind(params.id, params.content, params.now, params.now),
+      .prepare(
+        `INSERT INTO stocks (id, content, image_keys, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(params.id, params.content, imageKeysJson, params.now, params.now),
     db
       .prepare(
         `UPDATE user_stats

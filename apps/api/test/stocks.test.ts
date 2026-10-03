@@ -173,4 +173,48 @@ describe("Stockly API Endpoints", () => {
     expect(readData.stats.rediscovery_count).toBe(1);
     expect(readData.stats.score).toBe(20);
   });
+
+  it("POST /api/upload should validate and accept image files", async () => {
+    const mockDB = createMockDB();
+
+    // 1. ファイルなしのリクエストは 400
+    const emptyRes = await app.request(
+      "/api/upload",
+      { method: "POST", body: new FormData() },
+      { DB: mockDB },
+    );
+    expect(emptyRes.status).toBe(400);
+
+    // 2. 有効な画像ファイルのアップロード
+    const formData = new FormData();
+    const file = new File(["dummy image content"], "photo.png", { type: "image/png" });
+    formData.append("file", file);
+
+    const uploadRes = await app.request(
+      "/api/upload",
+      { method: "POST", body: formData },
+      { DB: mockDB },
+    );
+    expect(uploadRes.status).toBe(201);
+    const uploadData = (await uploadRes.json()) as any;
+    expect(uploadData.key).toBeDefined();
+    expect(uploadData.url).toContain("/api/media/");
+
+    // 3. 画像キー付きでストックを作成
+    const postRes = await app.request(
+      "/api/stocks",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "画像付きストックのテスト",
+          imageKeys: [uploadData.key],
+        }),
+      },
+      { DB: mockDB },
+    );
+    expect(postRes.status).toBe(201);
+    const postData = (await postRes.json()) as any;
+    expect(postData.image_keys).toContain(uploadData.key);
+  });
 });

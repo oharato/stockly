@@ -83,7 +83,7 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
 
 ---
 
-## 📋 Milestone 3 (「今日の再発見」 & 検索 & 画像添付) 詳細タスクリスト (進行中 🚀)
+## 📋 Milestone 3 (「今日の再発見」 & 検索 & 画像添付) 詳細タスクリスト (完了 🎉)
 
 - [x] **3.1 本文キーワード検索機能**:
   - `GET /api/stocks?q=...` クエリパラメータ対応と D1 SQL `LIKE` 検索（`apps/api/src/db/stocks.ts`）
@@ -96,7 +96,10 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - `RediscoveryCard.svelte`: タイムライン最上部に配置される稲妻アイコン `⚡ 今日の再発見` カード
   - 「振り返った (+20pt)」インタラクティブ読了アクションボタン
   - E2E テスト拡充（実サーバーに対する検索および再発見サイクルの検証）
-- [ ] **3.3 Cloudflare R2 による画像添付機能**:
-  - `wrangler.jsonc` R2 バインディング設定
-  - 画像アップロード API & プレサインドURL
-  - モーダルでの画像添付プレビュー & カードでの画像表示
+- [x] **3.3 Cloudflare R2 による画像添付機能**:
+  - `wrangler.jsonc` R2 バインディング設定 (`STORAGE`, `stockly-media`)
+  - バックエンド: `POST /api/upload` (5MB 制限, MIME タイプ検証) & `GET /api/media/:key`
+  - D1 `stocks` テーブル `image_keys` (JSON配列文字列) 保存・取得対応
+  - フロントエンド: `StockInputModal.svelte` での画像添付プレビュー・削除機能
+  - `StockCard.svelte` でのサムネイル画像表示 & タップで拡大表示するフルスクリーンライトボックスモーダル
+  - Live E2E テスト (`apps/web/test/e2e/api-e2e.test.ts`) での画像アップロード・取得・ストック添付の全フロー自動検証

@@ -107,13 +107,32 @@ class StockStore {
     }
   }
 
+  // 画像アップロード
+  async uploadImage(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = (await res.json()) as { error?: string };
+      throw new Error(errData.error || "画像のアップロードに失敗しました");
+    }
+
+    const data = (await res.json()) as { key: string; url: string };
+    return data.key;
+  }
+
   // 新規ストック作成
-  async createStock(content: string) {
+  async createStock(content: string, imageKeys?: string[]) {
     this.isSubmitting = true;
     this.error = null;
     try {
       const res = await client.api.stocks.$post({
-        json: { content },
+        json: { content, imageKeys },
       });
       if (!res.ok) {
         const errorData = await res.json();

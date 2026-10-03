@@ -205,8 +205,23 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `apps/api/src/routes/stocks.ts`: `GET /api/stocks/rediscovery` および `POST /api/stocks/rediscovery/read` エンドポイントを新設。
   - `apps/web/src/components/RediscoveryCard.svelte`: タイムライン最上部に配置される、アンバー色グラデーションの「⚡ 今日の再発見」カード。過去の投稿日時の表示、本文プレビュー、AIコメント、「振り返った (+20pt)」インタラクティブ読了ボタン。
   - `apps/web/src/lib/stocks.svelte.ts`: `fetchRediscovery()` および `readRediscovery()` アクションでスコアと読了状態を即時更新。
-- **品質・テスト検証**:
-  - `apps/web/test/e2e/api-e2e.test.ts`: 実サーバーに対するキーワード検索、再発見カード取得、読了アクション（スコア・再発見数加算）の E2E 検証を追加。
+- **Step 3-3: Cloudflare R2 による画像添付機能 (完了)**:
+  - `apps/api/wrangler.jsonc`: R2 バケットバインディング設定 (`STORAGE: stockly-media`) を定義。ローカル Wrangler では `.wrangler/state/v3/r2` で自動永続化。
+  - `apps/api/src/schemas/stock.ts`: `createStockSchema` に `imageKeys: z.array(z.string()).optional()` を追加。
+  - `apps/api/src/db/stocks.ts`: `createStockWithStats` で `image_keys` を JSON 文字列として D1 SQLite に保存するよう拡張。
+  - `apps/api/src/routes/stocks.ts`:
+    - `POST /api/upload`: `multipart/form-data` からファイルを受信し、5MB 制限・許可 MIME タイプ（image/jpeg, png, webp, gif）の検証を経て R2 へ直接 `put`。ユニークなオブジェクトキーを生成して返却。
+    - `GET /api/media/:key`: R2 からオブジェクトを `get` し、適切な `Content-Type` と `Cache-Control` ヘッダーを付与して配信。
+  - `apps/web/src/lib/stocks.svelte.ts`: `uploadImage(file: File)` メソッドを実装。
+  - `apps/web/src/components/StockInputModal.svelte`:
+    - 画像添付ボタン（`ImagePlus`）と非表示 `<input type="file">`
+    - アップロード前の画像サムネイルプレビュー & 削除用ゴミ箱ボタン
+  - `apps/web/src/components/StockCard.svelte`:
+    - ストックカード内に添付画像のグリッド/サムネイル表示
+    - 画像タップ時に高解像度で閲覧できるフルスクリーンライトボックスモーダル（`X` 閉じるボタン付き）
+- **品質・テスト・視覚自己検証 (`AGENTS.md` Rule 7 準拠)**:
+  - `apps/web/test/e2e/api-e2e.test.ts`: 実サーバーに対する画像の R2 アップロード ➔ メディア取得 ➔ ストックへの添付 ➔ 削除の全サイクル自動 E2E テストを追加。
   - `vp check`: **0 warnings, 0 errors, 54 files formatted**
-  - `vp test --run`: **全 8 スイート 35 テストが 1.08s で全件パス**
-  - `vp run -r build`: Web (84.93 kB, gzip 30.28 kB) & API の高速プロダクションビルド成功。
+  - `vp test --run`: **全 8 スイート 36 テスト全件パス**
+  - ヘッドレス Chromium (`/snap/bin/chromium --headless`) による視覚自己レビューを実施。タイムライン、再発見カード、入力モーダル、画像添付ボタンの配置崩れ・重複がないことを確認済み。
+  - `vp run -r build`: Web & API の高速プロダクションビルド成功。

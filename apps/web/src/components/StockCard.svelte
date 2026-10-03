@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Trash2, Clock, Sparkles, MessageSquareQuote } from "lucide-svelte";
+  import { Trash2, Clock, Sparkles, MessageSquareQuote, X } from "lucide-svelte";
   import type { StockItem } from "../types/stock";
   import { formatTime } from "../utils/date";
 
@@ -11,6 +11,18 @@
   let { stock, onDelete }: Props = $props();
 
   let formattedTime = $derived(formatTime(stock.created_at));
+
+  let imageKeys = $derived.by(() => {
+    if (!stock.image_keys) return [];
+    try {
+      const parsed = JSON.parse(stock.image_keys);
+      return Array.isArray(parsed) ? (parsed as string[]) : [String(parsed)];
+    } catch {
+      return [stock.image_keys];
+    }
+  });
+
+  let selectedImage = $state<string | null>(null);
 
   // 新規投稿直後（1分以内）で AI コメントがまだない場合は「考え中」を表示
   let isThinking = $derived.by(() => {
@@ -34,7 +46,7 @@
         type="button"
         onclick={() => onDelete(stock.id)}
         aria-label="ストックを削除"
-        class="opacity-60 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-md transition-all text-slate-400"
+        class="opacity-60 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-md transition-all text-slate-400 cursor-pointer"
       >
         <Trash2 class="w-3.5 h-3.5" />
       </button>
@@ -45,6 +57,26 @@
   <p class="text-slate-800 text-[15px] leading-relaxed whitespace-pre-wrap break-words font-normal">
     {stock.content}
   </p>
+
+  <!-- 添付画像一覧 -->
+  {#if imageKeys.length > 0}
+    <div class="mt-3 flex flex-wrap gap-2">
+      {#each imageKeys as key (key)}
+        <button
+          type="button"
+          onclick={() => (selectedImage = `/api/media/${key}`)}
+          class="rounded-xl overflow-hidden border border-slate-200/80 hover:opacity-90 transition-opacity cursor-pointer shadow-2xs max-h-48"
+        >
+          <img
+            src={`/api/media/${key}`}
+            alt="ストック添付画像"
+            loading="lazy"
+            class="h-36 w-auto max-w-full object-cover rounded-xl"
+          />
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   <!-- AI パートナーからの問いかけ領域 -->
   {#if stock.ai_comment}
@@ -67,3 +99,30 @@
     </div>
   {/if}
 </article>
+
+<!-- 画像拡大モーダル -->
+{#if selectedImage}
+  <div
+    role="dialog"
+    tabindex="-1"
+    onclick={() => (selectedImage = null)}
+    onkeydown={(e) => e.key === "Escape" && (selectedImage = null)}
+    class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+  >
+    <div class="relative max-w-2xl max-h-[90vh]">
+      <img
+        src={selectedImage}
+        alt="拡大表示"
+        class="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
+      />
+      <button
+        type="button"
+        onclick={() => (selectedImage = null)}
+        aria-label="閉じる"
+        class="absolute -top-3 -right-3 w-8 h-8 bg-white/90 hover:bg-white text-slate-800 rounded-full flex items-center justify-center shadow-lg transition-colors cursor-pointer"
+      >
+        <X class="w-4 h-4" />
+      </button>
+    </div>
+  </div>
+{/if}

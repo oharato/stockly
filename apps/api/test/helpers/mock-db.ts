@@ -105,12 +105,23 @@ export function createMockDB() {
 
         // INSERT INTO stocks
         if (q.includes("INSERT INTO stocks")) {
-          stocks.push({
-            id: args[0],
-            content: args[1],
-            created_at: args[2],
-            updated_at: args[3],
-          });
+          if (args.length >= 5) {
+            stocks.push({
+              id: args[0],
+              content: args[1],
+              image_keys: args[2],
+              created_at: args[3],
+              updated_at: args[4],
+            });
+          } else {
+            stocks.push({
+              id: args[0],
+              content: args[1],
+              image_keys: null,
+              created_at: args[2],
+              updated_at: args[3],
+            });
+          }
         }
         // UPDATE user_stats (加算)
         if (q.includes("total_stocks + 1")) {

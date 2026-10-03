@@ -22,8 +22,13 @@
   });
 
   // ストック追加ハンドラー
-  async function handleAddStock(content: string) {
-    await stockStore.createStock(content);
+  async function handleAddStock(content: string, imageFile?: File | null) {
+    let imageKeys: string[] | undefined;
+    if (imageFile) {
+      const key = await stockStore.uploadImage(imageFile);
+      imageKeys = [key];
+    }
+    await stockStore.createStock(content, imageKeys);
   }
 
   // ストック削除ハンドラー

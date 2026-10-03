@@ -88,7 +88,39 @@ describe("Live Server E2E Critical Path Tests", () => {
     expect(readRediscoveryData.success).toBe(true);
     expect(readRediscoveryData.stats.rediscovery_count).toBeGreaterThan(0);
 
-    // 5. 統計情報の取得 (スコア・ストリークが正しく加算されていること)
+    // 8. 画像アップロードと添付ストックの検証
+    const form = new FormData();
+    const blob = new Blob(["fake-image-bytes"], { type: "image/png" });
+    form.append("file", blob, "test.png");
+    const uploadRes = await fetch(`${API_BASE_URL}/api/upload`, {
+      method: "POST",
+      body: form,
+    });
+    expect(uploadRes.status).toBe(201);
+    const uploadData = (await uploadRes.json()) as any;
+    expect(uploadData.key).toBeDefined();
+
+    // メディア取得APIの検証
+    const mediaRes = await fetch(`${API_BASE_URL}/api/media/${uploadData.key}`);
+    expect(mediaRes.status).toBe(200);
+
+    // 画像付きストック作成
+    const imgStockRes = await fetch(`${API_BASE_URL}/api/stocks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: "【E2E画像ストック】画像付きテスト",
+        imageKeys: [uploadData.key],
+      }),
+    });
+    expect(imgStockRes.status).toBe(201);
+    const imgStock = (await imgStockRes.json()) as any;
+    expect(imgStock.image_keys).toContain(uploadData.key);
+
+    // 画像付きストックのクリーンアップ削除
+    await fetch(`${API_BASE_URL}/api/stocks/${imgStock.id}`, { method: "DELETE" });
+
+    // 9. 統計情報の取得 (スコア・ストリークが正しく加算されていること)
     const statsRes = await fetch(`${API_BASE_URL}/api/stats`);
     expect(statsRes.status).toBe(200);
     const statsData = (await statsRes.json()) as any;
@@ -96,13 +128,13 @@ describe("Live Server E2E Critical Path Tests", () => {
     expect(statsData.score).toBeGreaterThanOrEqual(10);
     expect(statsData.current_streak).toBeGreaterThanOrEqual(1);
 
-    // 5. 作成したテストストックの削除クリーンアップ
+    // 10. 作成したテストストックの削除クリーンアップ
     const deleteRes = await fetch(`${API_BASE_URL}/api/stocks/${created.id}`, {
       method: "DELETE",
     });
     expect(deleteRes.status).toBe(200);
 
-    // 6. 削除後に一覧から除外されていることを確認
+    // 11. 削除後に一覧から除外されていることを確認
     const afterDeleteListRes = await fetch(`${API_BASE_URL}/api/stocks`);
     const afterDeleteListData = (await afterDeleteListRes.json()) as any;
     const afterFound = afterDeleteListData.stocks.find((s: any) => s.id === created.id);

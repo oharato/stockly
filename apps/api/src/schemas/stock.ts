@@ -3,6 +3,7 @@ import { z } from "zod";
 // ストック作成用スキーマ
 export const createStockSchema = z.object({
   content: z.string().min(1, "本文を入力してください").max(2000, "2000文字以内で入力してください"),
+  imageKeys: z.array(z.string()).optional(),
   tagNames: z.array(z.string()).optional(),
 });
 

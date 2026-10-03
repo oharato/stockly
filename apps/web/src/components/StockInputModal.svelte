@@ -1,17 +1,20 @@
 <script lang="ts">
-  import { X, Send, Sparkles, Loader2 } from "lucide-svelte";
+  import { X, Send, Sparkles, Loader2, ImagePlus, Trash2 } from "lucide-svelte";
 
   interface Props {
     isOpen: boolean;
     isSubmitting?: boolean;
     onClose: () => void;
-    onSubmit: (content: string) => Promise<void> | void;
+    onSubmit: (content: string, imageFile?: File | null) => Promise<void> | void;
   }
 
   let { isOpen, isSubmitting = false, onClose, onSubmit }: Props = $props();
 
   let content = $state("");
   let selectedTemplate = $state<string | null>(null);
+  let selectedFile = $state<File | null>(null);
+  let previewUrl = $state<string | null>(null);
+  let fileInputRef = $state<HTMLInputElement | null>(null);
 
   const templates = [
     {
@@ -45,11 +48,35 @@
     }
   }
 
+  function handleFileSelect(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      selectedFile = file;
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      previewUrl = URL.createObjectURL(file);
+    }
+  }
+
+  function removeSelectedFile() {
+    selectedFile = null;
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    }
+    if (fileInputRef) {
+      fileInputRef.value = "";
+    }
+  }
+
   async function handleSubmit() {
     if (!content.trim() || isSubmitting) return;
-    await onSubmit(content.trim());
+    await onSubmit(content.trim(), selectedFile);
     content = "";
     selectedTemplate = null;
+    removeSelectedFile();
     onClose();
   }
 
@@ -113,27 +140,61 @@
       </div>
 
       <!-- 入力テキストエリア -->
-      <div class="p-5 flex-1 overflow-y-auto">
+      <div class="p-5 flex-1 overflow-y-auto space-y-3">
         <textarea
           bind:value={content}
           disabled={isSubmitting}
           placeholder="今日学んだこと、反省、次に試したいことを書き出してみましょう..."
-          rows="8"
+          rows="6"
           class="w-full text-slate-800 text-base placeholder:text-slate-400 placeholder:text-sm resize-none focus:outline-none leading-relaxed bg-transparent"
         ></textarea>
+
+        {#if previewUrl}
+          <div class="relative inline-block rounded-xl overflow-hidden border border-slate-200 shadow-2xs group">
+            <img src={previewUrl} alt="添付画像プレビュー" class="h-28 w-auto object-cover rounded-xl" />
+            <button
+              type="button"
+              onclick={removeSelectedFile}
+              disabled={isSubmitting}
+              aria-label="画像を削除"
+              class="absolute top-1.5 right-1.5 p-1 bg-slate-900/70 hover:bg-rose-600 text-white rounded-full transition-colors cursor-pointer"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        {/if}
       </div>
 
-      <!-- フッター（文字数 & 送信ボタン） -->
+      <!-- フッター（画像添付ボタン & 文字数 & 送信ボタン） -->
       <div class="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between rounded-b-2xl">
-        <span class="text-xs text-slate-400 font-mono">
-          {content.length} / 1000文字
-        </span>
+        <div class="flex items-center gap-3">
+          <!-- 非表示の file input -->
+          <input
+            bind:this={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onchange={handleFileSelect}
+            class="hidden"
+            id="stock-image-input"
+          />
+          <label
+            for="stock-image-input"
+            class="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-teal-700 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-200 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors shadow-2xs"
+          >
+            <ImagePlus class="w-4 h-4 text-teal-600" />
+            <span>画像添付</span>
+          </label>
+
+          <span class="text-xs text-slate-400 font-mono">
+            {content.length} / 2000文字
+          </span>
+        </div>
 
         <button
           type="button"
           onclick={handleSubmit}
           disabled={!content.trim() || isSubmitting}
-          class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm shadow-teal-600/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          class="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-sm shadow-teal-600/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           {#if isSubmitting}
             <Loader2 class="w-4 h-4 animate-spin" />
