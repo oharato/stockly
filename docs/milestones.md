@@ -36,21 +36,23 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
 
 ---
 
-## 📋 Milestone 1 (MVP) 詳細タスクリスト
+## 📋 Milestone 1 (MVP) 詳細タスクリスト (完了 🎉)
 
-- [ ] **1.1 ツール・リポジトリ初期化**:
+- [x] **1.1 ツール・リポジトリ初期化**:
   - `.mise.toml`（Node.js LTS, pnpm, Pulumi）
   - pnpm workspace 設定（`apps/web`, `apps/api`）
   - Vite+ 設定（`vp check`, `vp test` の動作確認）
-- [ ] **1.2 バックエンド API (Hono on Cloudflare Workers)**:
+- [x] **1.2 バックエンド API (Hono on Cloudflare Workers)**:
   - `wrangler.jsonc` & ローカル D1 設定
   - `stocks` テーブルマイグレーション
-  - CRUD エンドポイント実装（`GET /api/stocks`, `POST /api/stocks`, `DELETE /api/stocks/:id`）
-- [ ] **1.3 フロントエンド PWA (Svelte 5 + Tailwind + Vite+)**:
-  - Svelte 5 コンポーネント構成（BottomNav, StockCard, StockInputModal）
-  - Runes（`$state`, `$derived`）によるストック状態管理
-  - ストック一覧画面（日付区切りヘッダー、カード表示、削除メニュー）
+  - CRUD エンドポイント実装（`GET /api/stocks`, `POST /api/stocks`, `DELETE /api/stocks/:id`, `GET /api/stats`）
+  - 単体自動テスト（`apps/api/test/stocks.test.ts` 全 6 件パス）
+- [x] **1.3 フロントエンド PWA (Svelte 5 + Tailwind + Vite+)**:
+  - Svelte 5 コンポーネント構成（Header, BottomNav, StockCard, Timeline, StockInputModal）
+  - Runes（`$state`, `$derived`）によるストック状態管理（`stocks.svelte.ts`）
+  - ストック一覧画面（日付区切りヘッダー、カード表示、削除アクション）
   - `vite-plugin-pwa` 設定（マニフェスト、アプリアイコン、スタンドアロンモード）
-- [ ] **1.4 動作検証**:
+- [x] **1.4 結合 & 動作検証**:
+  - Zod + Hono RPC（`hc<AppType>`）によるフロント・API 完全型安全結線
   - `vp check`（Oxlint + Oxfmt + 型チェック）のパス確認
-  - ブラウザおよびスマホでの PWA ホーム画面追加・動作テスト
+  - ブラウザおよびスマホでの PWA 動作テスト（投稿・削除・統計加算サイクル確認）

@@ -110,7 +110,7 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
 - VS Code 誤警告の要因だった `.vscode/mcp.json` を整理し、標準のルート `.mcp.json` に統一。
 - 主なコミット: `efa8185`, `2b4769d`, `87e8ff4`。
 
-#### 5. Milestone 1 - Step 3: フロントエンド UI 実装 (完了・検証中)
+#### 5. Milestone 1 - Step 3: フロントエンド UI 実装 (完了)
 
 - Svelte 5 Runes (`$state`, `$derived`, `$props`) を全面採用したモバイルファースト UI を構築。
 - 作成コンポーネント:
@@ -120,3 +120,17 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `Timeline.svelte`: 日付グループ見出し（今日、昨日、日付）付きリスト & 空状態（Empty State）UI
   - `StockInputModal.svelte`: 内省入力モーダル（YWT, KPT, 学びのクイックテンプレート、文字数カウント、送信ボタン）
   - `App.svelte`: タイムライン画面とふりかえり（統計レベル・連続ストリーク）画面の切り替え。
+- 主なコミット: `9ba350b`。
+
+#### 6. Milestone 1 - Step 4: フロント・API 結合 & PWA 設定 (完了)
+
+- **Hono RPC 型安全通信結線**:
+  - `apps/web/src/lib/api.ts`: Hono Client (`hc<AppType>`) を設定。
+  - `apps/web/vite.config.ts`: `/api` 宛てのリクエストをローカル Workers API サーバー (`http://127.0.0.1:8787`) に転送する proxy 設定を追加。
+- **Svelte 5 Runes ストア**:
+  - `apps/web/src/lib/stocks.svelte.ts`: `stocks`, `stats`, `isLoading`, `isSubmitting`, `error` のリアクティブな状態管理と CRUD 操作メソッドを実装。
+  - `App.svelte` と連携し、初期マウント時に D1 からストック一覧・統計データを取得。
+- **PWA 設定**:
+  - `vite-plugin-pwa` によるスタンドアロンマニフェスト、アプリアイコン設定、Service Worker 生成を検証。
+- **End-to-End 動作確認**:
+  - モーダルからの内省投稿 ➔ ローカル D1 への保存 ➔ タイムラインへの自動反映 ➔ 統計スコア加算 ➔ 削除の全サイクルが正常動作することを確認。

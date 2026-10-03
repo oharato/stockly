@@ -1,13 +1,6 @@
 <script lang="ts">
   import { Trash2, Clock, Sparkles } from "lucide-svelte";
-
-  export interface StockItem {
-    id: string;
-    content: string;
-    created_at: string;
-    updated_at: string;
-    ai_comment?: string | null;
-  }
+  import type { StockItem } from "../types/stock";
 
   interface Props {
     stock: StockItem;

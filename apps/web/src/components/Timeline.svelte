@@ -1,5 +1,6 @@
 <script lang="ts">
-  import StockCard, { type StockItem } from "./StockCard.svelte";
+  import StockCard from "./StockCard.svelte";
+  import type { StockItem } from "../types/stock";
   import { Sparkles, Calendar } from "lucide-svelte";
 
   interface Props {
