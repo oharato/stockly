@@ -4,11 +4,12 @@ import * as pulumi from "@pulumi/pulumi";
 import * as cloudflare from "@pulumi/cloudflare";
 
 // Auto-load .env from root or current directory if present
+const baseDir = import.meta.dirname ?? process.cwd();
 const candidateEnvPaths = [
   path.resolve(process.cwd(), ".env"),
   path.resolve(process.cwd(), "../.env"),
-  path.resolve(__dirname, "../.env"),
-  path.resolve(__dirname, ".env"),
+  path.resolve(baseDir, "../.env"),
+  path.resolve(baseDir, ".env"),
 ];
 for (const envPath of candidateEnvPaths) {
   if (fs.existsSync(envPath)) {
