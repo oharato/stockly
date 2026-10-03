@@ -69,7 +69,9 @@
         </div>
         {#if stockStore.isAuthError}
           <button
-            onclick={() => window.location.reload()}
+            onclick={() => {
+              window.location.href = "/api/auth/login";
+            }}
             class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-medium text-[11px] rounded-lg shrink-0 transition"
           >
             ログイン

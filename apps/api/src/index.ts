@@ -26,6 +26,10 @@ const routes = app
   .get("/api/health", (c) => {
     return c.json({ status: "ok", time: new Date().toISOString() });
   })
+  .get("/api/auth/login", (c) => {
+    // Cloudflare Access 認証完了後にこのエンドポイントへ到達するため、トップ画面へリダイレクト
+    return c.redirect("/");
+  })
   .route("/", stockRoutes);
 
 // 静的アセット（SPA PWA）フォールバック
