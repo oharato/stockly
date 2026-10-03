@@ -33,18 +33,20 @@
   <div class="absolute -right-6 -top-6 w-24 h-24 bg-amber-400/15 rounded-full blur-xl pointer-events-none"></div>
 
   <!-- ヘッダー行 -->
-  <div class="flex items-center justify-between gap-2 mb-2.5">
-    <div class="flex items-center gap-1.5 text-amber-700 font-bold text-xs">
-      <div class="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs">
+  <div class="flex items-center justify-between gap-2 mb-3">
+    <div class="flex items-center gap-1.5 text-amber-800 font-bold text-xs min-w-0">
+      <div class="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
         <Zap class="w-3 h-3 fill-current" />
       </div>
-      <span>今日の再発見</span>
-      <span class="text-[11px] font-normal text-amber-600/90 ml-1">({formattedDate})</span>
+      <span class="whitespace-nowrap font-extrabold tracking-wide">今日の再発見</span>
+      <span class="text-[10px] font-medium text-amber-700 bg-amber-200/50 px-1.5 py-0.5 rounded-md whitespace-nowrap truncate max-w-[110px]">
+        {formattedDate}
+      </span>
     </div>
 
     <!-- 読了アクションボタン -->
     {#if localRead}
-      <div class="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full">
+      <div class="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
         <Check class="w-3 h-3 stroke-2" />
         <span>振り返り済み</span>
       </div>
@@ -53,10 +55,10 @@
         type="button"
         onclick={handleRead}
         disabled={isReading}
-        class="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 transition-all px-3 py-1 rounded-full shadow-xs cursor-pointer disabled:opacity-50"
+        class="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 transition-all px-2.5 py-1 rounded-full shadow-xs cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
       >
         <span>振り返った</span>
-        <span class="text-[10px] bg-amber-700/60 px-1 py-0.2 rounded-full">+20pt</span>
+        <span class="text-[10px] bg-amber-700/60 px-1 py-0.2 rounded-full font-medium">+20pt</span>
       </button>
     {/if}
   </div>
