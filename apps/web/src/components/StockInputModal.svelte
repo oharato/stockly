@@ -1,20 +1,39 @@
 <script lang="ts">
-  import { X, Send, Sparkles, Loader2, ImagePlus, Trash2 } from "lucide-svelte";
+  import { X, Send, Sparkles, Loader2, ImagePlus, Trash2, Tag, Plus } from "lucide-svelte";
+  import type { TagItem, GoalItem } from "../types/stock";
 
   interface Props {
     isOpen: boolean;
     isSubmitting?: boolean;
+    availableTags?: TagItem[];
+    availableGoals?: GoalItem[];
     onClose: () => void;
-    onSubmit: (content: string, imageFile?: File | null) => Promise<void> | void;
+    onSubmit: (
+      content: string,
+      imageFile?: File | null,
+      tagNames?: string[],
+    ) => Promise<void> | void;
   }
 
-  let { isOpen, isSubmitting = false, onClose, onSubmit }: Props = $props();
+  let {
+    isOpen,
+    isSubmitting = false,
+    availableTags = [],
+    availableGoals = [],
+    onClose,
+    onSubmit,
+  }: Props = $props();
 
   let content = $state("");
   let selectedTemplate = $state<string | null>(null);
   let selectedFile = $state<File | null>(null);
   let previewUrl = $state<string | null>(null);
   let fileInputRef = $state<HTMLInputElement | null>(null);
+
+  // タグ関連ステート
+  let selectedTags = $state<string[]>([]);
+  let isTagMenuOpen = $state(false);
+  let customTagName = $state("");
 
   const templates = [
     {
@@ -71,11 +90,37 @@
     }
   }
 
+  function toggleTag(name: string) {
+    const clean = name.trim();
+    if (!clean) return;
+    if (selectedTags.includes(clean)) {
+      selectedTags = selectedTags.filter((t) => t !== clean);
+    } else {
+      selectedTags = [...selectedTags, clean];
+    }
+  }
+
+  function addCustomTag() {
+    const clean = customTagName.trim().replace(/^#/, "");
+    if (!clean) return;
+    if (!selectedTags.includes(clean)) {
+      selectedTags = [...selectedTags, clean];
+    }
+    customTagName = "";
+  }
+
   async function handleSubmit() {
     if (!content.trim() || isSubmitting) return;
-    await onSubmit(content.trim(), selectedFile);
+    await onSubmit(
+      content.trim(),
+      selectedFile,
+      selectedTags.length > 0 ? selectedTags : undefined,
+    );
     content = "";
     selectedTemplate = null;
+    selectedTags = [];
+    customTagName = "";
+    isTagMenuOpen = false;
     removeSelectedFile();
     onClose();
   }
@@ -137,6 +182,102 @@
             {tmpl.label}
           </button>
         {/each}
+      </div>
+
+      <!-- テーマ・目標タグ領域 -->
+      <div class="px-5 py-2.5 border-b border-slate-100 bg-slate-50/40 space-y-2">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onclick={() => (isTagMenuOpen = !isTagMenuOpen)}
+            class={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer font-medium ${
+              isTagMenuOpen
+                ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                : "bg-white text-slate-600 hover:text-teal-700 hover:bg-teal-50/50 border-slate-200"
+            }`}
+          >
+            <Tag class="w-3 h-3" />
+            <span>{isTagMenuOpen ? "タグ選択を閉じる" : "+ テーマ・目標を設定"}</span>
+          </button>
+
+          {#each selectedTags as tag (tag)}
+            <span class="inline-flex items-center gap-1 text-xs font-semibold text-teal-800 bg-teal-100/70 border border-teal-300/80 pl-2.5 pr-1.5 py-0.5 rounded-full animate-in fade-in duration-150">
+              <span>#{tag}</span>
+              <button
+                type="button"
+                onclick={() => toggleTag(tag)}
+                class="hover:text-rose-600 p-0.5 rounded-full transition-colors cursor-pointer"
+                aria-label="タグを解除"
+              >
+                <X class="w-3 h-3" />
+              </button>
+            </span>
+          {/each}
+        </div>
+
+        {#if isTagMenuOpen}
+          <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-xs space-y-2.5 animate-in slide-in-from-top-1 duration-150">
+            <!-- 既存の目標やタグの候補チップ -->
+            {#if availableGoals.length > 0 || availableTags.length > 0}
+              <div>
+                <span class="text-[11px] font-bold text-slate-400 block mb-1.5">候補から選ぶ:</span>
+                <div class="flex flex-wrap gap-1.5">
+                  {#each availableGoals as goal (goal.id)}
+                    <button
+                      type="button"
+                      onclick={() => toggleTag(goal.title)}
+                      class={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer font-medium ${
+                        selectedTags.includes(goal.title)
+                          ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      🎯 {goal.title}
+                    </button>
+                  {/each}
+                  {#each availableTags.filter((t) => !availableGoals.some((g) => g.title === t.name)) as tag (tag.name)}
+                    <button
+                      type="button"
+                      onclick={() => toggleTag(tag.name)}
+                      class={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer font-medium ${
+                        selectedTags.includes(tag.name)
+                          ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      #{tag.name}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <!-- 新規タグ自由入力 -->
+            <div class="flex items-center gap-1.5 pt-1">
+              <input
+                type="text"
+                bind:value={customTagName}
+                placeholder="新しいタグ・テーマを入力..."
+                maxlength="30"
+                onkeydown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomTag();
+                  }
+                }}
+                class="flex-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:border-teal-500 bg-slate-50/50"
+              />
+              <button
+                type="button"
+                onclick={addCustomTag}
+                disabled={!customTagName.trim()}
+                class="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg disabled:opacity-40 transition-colors cursor-pointer"
+              >
+                追加
+              </button>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- 入力テキストエリア -->

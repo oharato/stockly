@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { createStockSchema, type Stock } from "../schemas/stock";
+import { createStockSchema, createGoalSchema, type Stock, type Goal } from "../schemas/stock";
 import { calculateStreak, getJSTDateString } from "../utils/streak";
 import { generateAndSaveAIComment } from "../services/ai";
 import {
@@ -10,6 +10,7 @@ import {
   getDailyRediscoveryStock,
 } from "../db/stocks";
 import { getUserStats, getStreakContext, incrementRediscoveryCount } from "../db/stats";
+import { listGoals, createGoal, deleteGoal, listTags } from "../db/goals";
 
 export type Bindings = {
   DB: D1Database;
@@ -77,10 +78,11 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     return new Response(object.body, { headers });
   })
 
-  // ストック一覧取得（キーワード検索対応）
+  // ストック一覧取得（キーワード検索 & タグフィルター対応）
   .get("/api/stocks", async (c) => {
     const query = c.req.query("q");
-    const stocks = await listStocks(c.env.DB, query);
+    const tag = c.req.query("tag");
+    const stocks = await listStocks(c.env.DB, query, tag);
     return c.json({ stocks });
   })
 
@@ -97,9 +99,53 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     return c.json({ success: true, stats });
   })
 
+  // 使用中のタグ一覧取得
+  .get("/api/tags", async (c) => {
+    const tags = await listTags(c.env.DB);
+    return c.json({ tags });
+  })
+
+  // 目標一覧取得
+  .get("/api/goals", async (c) => {
+    const goals = await listGoals(c.env.DB);
+    return c.json({ goals });
+  })
+
+  // 目標新規作成
+  .post("/api/goals", zValidator("json", createGoalSchema), async (c) => {
+    const { title, category, color } = c.req.valid("json");
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await createGoal(c.env.DB, {
+      id,
+      title: title.trim(),
+      category: category || "general",
+      color: color || "teal",
+      now,
+    });
+    const createdGoal: Goal = {
+      id,
+      title: title.trim(),
+      category: category || "general",
+      color: color || "teal",
+      is_archived: 0,
+      stock_count: 0,
+      created_at: now,
+      updated_at: now,
+    };
+    return c.json(createdGoal, 201);
+  })
+
+  // 目標削除
+  .delete("/api/goals/:id", async (c) => {
+    const id = c.req.param("id");
+    await deleteGoal(c.env.DB, id);
+    return c.json({ success: true, id });
+  })
+
   // ストック新規作成
   .post("/api/stocks", zValidator("json", createStockSchema), async (c) => {
-    const { content, imageKeys } = c.req.valid("json");
+    const { content, imageKeys, tagNames } = c.req.valid("json");
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const todayJST = getJSTDateString();
@@ -118,6 +164,7 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
       id,
       content,
       imageKeys,
+      tagNames,
       now,
       newStreak: streakResult.newStreak,
       newMaxStreak: streakResult.newMaxStreak,
@@ -128,6 +175,7 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
       id,
       content,
       image_keys: imageKeys && imageKeys.length > 0 ? JSON.stringify(imageKeys) : null,
+      tags: tagNames && tagNames.length > 0 ? tagNames.map((t: string) => t.trim()) : [],
       created_at: now,
       updated_at: now,
     };

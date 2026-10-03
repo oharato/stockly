@@ -2,9 +2,11 @@
   import Header from "./components/Header.svelte";
   import Timeline from "./components/Timeline.svelte";
   import SearchBar from "./components/SearchBar.svelte";
+  import TagFilterBar from "./components/TagFilterBar.svelte";
   import RediscoveryCard from "./components/RediscoveryCard.svelte";
   import BottomNav from "./components/BottomNav.svelte";
   import StockInputModal from "./components/StockInputModal.svelte";
+  import StatsReport from "./components/StatsReport.svelte";
   import { stockStore } from "./lib/stocks.svelte";
   import { Flame, Trophy, Sparkles, Loader2, AlertCircle } from "lucide-svelte";
 
@@ -19,22 +21,36 @@
     stockStore.fetchStocks();
     stockStore.fetchStats();
     stockStore.fetchRediscovery();
+    stockStore.fetchTags();
+    stockStore.fetchGoals();
   });
 
   // ストック追加ハンドラー
-  async function handleAddStock(content: string, imageFile?: File | null) {
+  async function handleAddStock(content: string, imageFile?: File | null, tagNames?: string[]) {
     let imageKeys: string[] | undefined;
     if (imageFile) {
       const key = await stockStore.uploadImage(imageFile);
       imageKeys = [key];
     }
-    await stockStore.createStock(content, imageKeys);
+    await stockStore.createStock(content, imageKeys, tagNames);
   }
 
   // ストック削除ハンドラー
   async function handleDeleteStock(id: string) {
     if (confirm("このストックを削除しますか？")) {
       await stockStore.deleteStock(id);
+    }
+  }
+
+  // 目標作成ハンドラー
+  async function handleCreateGoal(title: string, category?: string, color?: string) {
+    await stockStore.createGoal(title, category, color);
+  }
+
+  // 目標削除ハンドラー
+  async function handleDeleteGoal(id: string) {
+    if (confirm("この目標を削除しますか？")) {
+      await stockStore.deleteGoal(id);
     }
   }
 </script>
@@ -63,8 +79,15 @@
             onClear={() => stockStore.clearSearch()}
           />
 
-          <!-- 今日の再発見カード (検索中でなく、再発見ストックがある場合に表示) -->
-          {#if !stockStore.searchQuery && stockStore.rediscovery}
+          <!-- タグフィルターバー -->
+          <TagFilterBar
+            tags={stockStore.tags}
+            selectedTag={stockStore.selectedTag}
+            onSelectTag={(tag) => stockStore.selectTag(tag)}
+          />
+
+          <!-- 今日の再発見カード (検索中でなく、タグ未選択で、再発見ストックがある場合に表示) -->
+          {#if !stockStore.searchQuery && !stockStore.selectedTag && stockStore.rediscovery}
             <RediscoveryCard
               stock={stockStore.rediscovery}
               isRead={stockStore.isRediscoveryRead}
@@ -82,52 +105,24 @@
             <Timeline
               stocks={stockStore.stocks}
               searchQuery={stockStore.searchQuery}
+              selectedTag={stockStore.selectedTag}
               onDeleteStock={handleDeleteStock}
               onClearSearch={() => stockStore.clearSearch()}
+              onClearTag={() => stockStore.selectTag(null)}
             />
           {/if}
         </div>
       {:else}
-        <!-- ふりかえり・統計タブ表示 -->
-        <div class="p-4 space-y-4 pb-28">
-          <div class="bg-gradient-to-br from-teal-600 to-teal-800 rounded-3xl p-6 text-white shadow-lg shadow-teal-700/20">
-            <span class="text-xs font-semibold text-teal-200 tracking-wider">REFLECTIVE LEVEL</span>
-            <div class="flex items-baseline gap-2 mt-1">
-              <span class="text-4xl font-extrabold tracking-tight">{stockStore.stats.score}</span>
-              <span class="text-teal-200 text-sm">ポイント</span>
-            </div>
-            <p class="text-xs text-teal-100/90 mt-3 leading-relaxed">
-              内省をストックするたびにスコアが蓄積され、あなたの内省習慣が可視化されます。
-            </p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div class="flex items-center gap-2 text-amber-500 mb-1">
-                <Flame class="w-4 h-4 fill-amber-500" />
-                <span class="text-xs font-bold text-slate-600">連続ストリーク</span>
-              </div>
-              <p class="text-2xl font-extrabold text-slate-900">{stockStore.stats.streak} <span class="text-xs font-normal text-slate-500">日連続</span></p>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-              <div class="flex items-center gap-2 text-teal-600 mb-1">
-                <Trophy class="w-4 h-4" />
-                <span class="text-xs font-bold text-slate-600">累計ストック</span>
-              </div>
-              <p class="text-2xl font-extrabold text-slate-900">{stockStore.stats.total_stocks} <span class="text-xs font-normal text-slate-500">件</span></p>
-            </div>
-          </div>
-
-          <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
-            <div class="flex items-center gap-2 text-teal-700 font-bold text-sm">
-              <Sparkles class="w-4 h-4" />
-              <h3>AI との過去の再発見</h3>
-            </div>
-            <p class="text-xs text-slate-500 leading-relaxed">
-              日々の内省を積み重ねることで、AI が過去のストックから「過去の気づき」を再提示し、忘れかけていた学びと現在の思考を結びつけます。
-            </p>
-          </div>
+        <!-- ふりかえり・統計レポートタブ表示 -->
+        <div class="px-4 pt-3.5">
+          <StatsReport
+            stats={stockStore.stats}
+            stocks={stockStore.stocks}
+            tags={stockStore.tags}
+            goals={stockStore.goals}
+            onCreateGoal={handleCreateGoal}
+            onDeleteGoal={handleDeleteGoal}
+          />
         </div>
       {/if}
     </main>
@@ -143,6 +138,8 @@
     <StockInputModal
       isOpen={isModalOpen}
       isSubmitting={stockStore.isSubmitting}
+      availableTags={stockStore.tags}
+      availableGoals={stockStore.goals}
       onClose={() => (isModalOpen = false)}
       onSubmit={handleAddStock}
     />

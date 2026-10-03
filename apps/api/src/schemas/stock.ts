@@ -14,12 +14,47 @@ export const stockSchema = z.object({
   id: z.string(),
   content: z.string(),
   image_keys: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
   created_at: z.string(),
   updated_at: z.string(),
   ai_comment: z.string().nullable().optional(),
 });
 
 export type Stock = z.infer<typeof stockSchema>;
+
+// 目標作成用スキーマ
+export const createGoalSchema = z.object({
+  title: z
+    .string()
+    .min(1, "目標タイトルを入力してください")
+    .max(100, "100文字以内で入力してください"),
+  category: z.string().optional().default("general"),
+  color: z.string().optional().default("teal"),
+});
+
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+
+// 目標エンティティスキーマ
+export const goalSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  category: z.string(),
+  color: z.string(),
+  is_archived: z.number().default(0),
+  stock_count: z.number().optional().default(0),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export type Goal = z.infer<typeof goalSchema>;
+
+// タグ集計スキーマ
+export const tagSummarySchema = z.object({
+  name: z.string(),
+  count: z.number(),
+});
+
+export type TagSummary = z.infer<typeof tagSummarySchema>;
 
 // ユーザー統計スキーマ
 export const userStatsSchema = z.object({

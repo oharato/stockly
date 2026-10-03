@@ -225,3 +225,30 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `vp test --run`: **全 8 スイート 36 テスト全件パス**
   - ヘッドレス Chromium (`/snap/bin/chromium --headless`) による視覚自己レビューを実施。タイムライン、再発見カード、入力モーダル、画像添付ボタンの配置崩れ・重複がないことを確認済み。
   - `vp run -r build`: Web & API の高速プロダクションビルド成功。
+
+#### 11. Milestone 4: 目標・ビジョン管理 & レポート画面 (完了)
+
+- **Step 4-1: テーマ・目標タグのデータモデル & CRUD API (完了)**:
+  - `apps/api/migrations/0002_create_goals.sql`: 目標・ビジョン管理用の `goals` テーブル作成マイグレーションを定義・適用。
+  - `apps/api/src/schemas/stock.ts`: `goalSchema`, `createGoalSchema`, `tagSummarySchema` を追加し、`stockSchema` に `tags` 配列を追加。
+  - `apps/api/src/db/goals.ts`: `listGoals`, `createGoal`, `deleteGoal`, `listTags` を提供する専用データアクセスモジュールを作成。
+  - `apps/api/src/db/stocks.ts`: D1 SQLite の `GROUP_CONCAT(DISTINCT t.name)` を用いてストックに紐づくタグ一覧を効率的に取得・マッピング。`tag` クエリパラメータによるフィルタリングに対応。
+  - `apps/api/src/routes/stocks.ts`: `GET /api/tags`, `GET /api/goals`, `POST /api/goals`, `DELETE /api/goals/:id` を新設し、`POST /api/stocks` での `tagNames` バッチ保存と `GET /api/stocks?tag=...` を実装。
+- **Step 4-2: フロントエンド: タグ付け & タイムラインフィルター (完了)**:
+  - `apps/web/src/components/StockInputModal.svelte`: `[+ テーマ・目標を設定]` ボタンから、設定済み目標・タグの候補チップおよび新規タグの直接追加入力に対応。
+  - `apps/web/src/components/StockCard.svelte`: 各ストックカード内に `#タグ名` のチップバッジを表示。
+  - `apps/web/src/components/TagFilterBar.svelte`: タイムライン最上部に横スクロール可能なタグフィルターバー（「すべて」「#タグ名」）を配置。
+  - `apps/web/src/components/Timeline.svelte`: タグフィルター時の専用 Empty State UI（「#タグのストックはありません」）を実装。
+- **Step 4-3: 「ふりかえり」レポート & 統計ダッシュボード (完了)**:
+  - `apps/web/src/components/StatsReport.svelte`:
+    - **REFLECTIVE LEVEL カード**: スコアと内省マスターバッジをあしらったモダンなグラデーションヘッダー。
+    - **4大メトリクス (2x2)**: 累計スコア、累計ストック件数、連続ストリーク日数、再発見の振り返り回数を一覧表示。
+    - **直近7日間の活動推移チャート**: 日次ストック数を視覚化する CSS バーグラフ（今日ハイライト、曜日別ラベル、今週合計）。
+    - **テーマ別 内省バランス**: タグ別のストック割合（％）とプログレスバーによる可視化。
+    - **目標・ビジョン管理**: 目標一覧カード（カテゴリ、紐づく内省件数）および「+ 目標を追加」フォーム。
+- **品質・テスト・視覚自己検証 (`AGENTS.md` Rule 7 準拠)**:
+  - `apps/web/test/e2e/api-e2e.test.ts`: 実サーバーに対するタグ付きストック作成 ➔ タグ一覧取得 ➔ タグ絞り込み ➔ 目標 CRUD の自動 E2E テストを追加。
+  - `vp check`: **0 warnings, 0 errors**
+  - `vp test --run`: **全 8 スイート 38 テスト全件パス**
+  - ヘッドレス Chromium (`/snap/bin/chromium --headless`) による視覚自己レビューを実施。タイムライン、タグフィルターバー、投稿モーダルのタグ選択、ふりかえり画面の活動バーチャート・メトリクスカードの表示崩れがないことを確認済み。
+  - `vp run -r build`: Web & API の高速プロダクションビルド成功。

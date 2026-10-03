@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 // ローカル開発サーバー (Vite Proxy: 5173 または API: 8787)
-const API_BASE_URL = process.env.TEST_API_URL || "http://127.0.0.1:8787";
+const API_BASE_URL =
+  (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env
+    ?.TEST_API_URL || "http://127.0.0.1:8787";
 
 describe("Live Server E2E Critical Path Tests", () => {
   // サーバーが稼働しているか事前確認
@@ -139,5 +141,62 @@ describe("Live Server E2E Critical Path Tests", () => {
     const afterDeleteListData = (await afterDeleteListRes.json()) as any;
     const afterFound = afterDeleteListData.stocks.find((s: any) => s.id === created.id);
     expect(afterFound).toBeUndefined();
+
+    // 12. タグ付きストック投稿とタグ集計・フィルターの検証
+    const tagStockRes = await fetch(`${API_BASE_URL}/api/stocks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: "【E2Eタグテスト】タグ付き内省の検証",
+        tagNames: ["E2Eタグ", "自己改善"],
+      }),
+    });
+    expect(tagStockRes.status).toBe(201);
+    const tagStock = (await tagStockRes.json()) as any;
+    expect(tagStock.tags).toContain("E2Eタグ");
+    expect(tagStock.tags).toContain("自己改善");
+
+    // タグ一覧取得
+    const tagsRes = await fetch(`${API_BASE_URL}/api/tags`);
+    expect(tagsRes.status).toBe(200);
+    const tagsData = (await tagsRes.json()) as any;
+    const foundTag = tagsData.tags.find((t: any) => t.name === "E2Eタグ");
+    expect(foundTag).toBeDefined();
+
+    // タグフィルターで取得
+    const filterRes = await fetch(`${API_BASE_URL}/api/stocks?tag=E2Eタグ`);
+    expect(filterRes.status).toBe(200);
+    const filterData = (await filterRes.json()) as any;
+    expect(filterData.stocks.length).toBeGreaterThanOrEqual(1);
+    expect(filterData.stocks[0].id).toBe(tagStock.id);
+
+    // タグ付きストック削除
+    await fetch(`${API_BASE_URL}/api/stocks/${tagStock.id}`, { method: "DELETE" });
+
+    // 13. 目標 (Goals) CRUD の検証
+    const createGoalRes = await fetch(`${API_BASE_URL}/api/goals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "E2Eテスト目標",
+        category: "learning",
+        color: "teal",
+      }),
+    });
+    expect(createGoalRes.status).toBe(201);
+    const createdGoal = (await createGoalRes.json()) as any;
+    expect(createdGoal.id).toBeDefined();
+    expect(createdGoal.title).toBe("E2Eテスト目標");
+
+    const getGoalsRes = await fetch(`${API_BASE_URL}/api/goals`);
+    expect(getGoalsRes.status).toBe(200);
+    const goalsData = (await getGoalsRes.json()) as any;
+    const foundGoal = goalsData.goals.find((g: any) => g.id === createdGoal.id);
+    expect(foundGoal).toBeDefined();
+
+    const deleteGoalRes = await fetch(`${API_BASE_URL}/api/goals/${createdGoal.id}`, {
+      method: "DELETE",
+    });
+    expect(deleteGoalRes.status).toBe(200);
   });
 });

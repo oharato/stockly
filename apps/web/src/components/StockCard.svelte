@@ -58,6 +58,17 @@
     {stock.content}
   </p>
 
+  <!-- タグ一覧 -->
+  {#if stock.tags && stock.tags.length > 0}
+    <div class="mt-2.5 flex flex-wrap gap-1.5">
+      {#each stock.tags as tag (tag)}
+        <span class="inline-flex items-center text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200/60 px-2 py-0.5 rounded-md">
+          #{tag}
+        </span>
+      {/each}
+    </div>
+  {/if}
+
   <!-- 添付画像一覧 -->
   {#if imageKeys.length > 0}
     <div class="mt-3 flex flex-wrap gap-2">

@@ -1,8 +1,12 @@
 import { client } from "./api";
-import type { StockItem, UserStats } from "../types/stock";
+import type { StockItem, GoalItem, TagItem, UserStats } from "../types/stock";
 
 class StockStore {
   stocks = $state<StockItem[]>([]);
+  tags = $state<TagItem[]>([]);
+  goals = $state<GoalItem[]>([]);
+  selectedTag = $state<string | null>(null);
+
   stats = $state<UserStats>({
     score: 0,
     total_stocks: 0,
@@ -19,16 +23,21 @@ class StockStore {
   rediscovery = $state<StockItem | null>(null);
   isRediscoveryRead = $state(false);
 
-  // 一覧取得
-  async fetchStocks(silent = false, query?: string) {
+  // 一覧取得（検索クエリ & タグフィルター対応）
+  async fetchStocks(silent = false, query?: string, tag?: string | null) {
     if (!silent) {
       this.isLoading = true;
     }
     this.error = null;
     const q = query !== undefined ? query : this.searchQuery;
+    const t = tag !== undefined ? tag : this.selectedTag;
     try {
+      const queryParams: Record<string, string> = {};
+      if (q) queryParams.q = q;
+      if (t) queryParams.tag = t;
+
       const res = await client.api.stocks.$get({
-        query: q ? { q } : {},
+        query: queryParams,
       });
       if (!res.ok) throw new Error("ストックの取得に失敗しました");
       const data = await res.json();
@@ -40,6 +49,12 @@ class StockStore {
         this.isLoading = false;
       }
     }
+  }
+
+  // タグ選択フィルター
+  selectTag(tag: string | null) {
+    this.selectedTag = tag;
+    void this.fetchStocks(true);
   }
 
   // 検索クエリ更新（250ms デバウンス付きインクリメンタル検索）
@@ -126,13 +141,64 @@ class StockStore {
     return data.key;
   }
 
+  // 使用中タグ一覧取得
+  async fetchTags() {
+    try {
+      const res = await client.api.tags.$get();
+      if (!res.ok) return;
+      const data = await res.json();
+      this.tags = data.tags;
+    } catch {
+      // サイレントに処理
+    }
+  }
+
+  // 目標一覧取得
+  async fetchGoals() {
+    try {
+      const res = await client.api.goals.$get();
+      if (!res.ok) return;
+      const data = await res.json();
+      this.goals = data.goals as GoalItem[];
+    } catch {
+      // サイレントに処理
+    }
+  }
+
+  // 目標新規作成
+  async createGoal(title: string, category = "general", color = "teal") {
+    try {
+      const res = await client.api.goals.$post({
+        json: { title, category, color },
+      });
+      if (!res.ok) throw new Error("目標の作成に失敗しました");
+      const created = (await res.json()) as GoalItem;
+      this.goals = [...this.goals, created];
+      return created;
+    } catch (err: unknown) {
+      this.error = err instanceof Error ? err.message : "目標作成エラー";
+      throw err;
+    }
+  }
+
+  // 目標削除
+  async deleteGoal(id: string) {
+    try {
+      const res = await client.api.goals[":id"].$delete({ param: { id } });
+      if (!res.ok) throw new Error("目標の削除に失敗しました");
+      this.goals = this.goals.filter((g) => g.id !== id);
+    } catch (err: unknown) {
+      this.error = err instanceof Error ? err.message : "目標削除エラー";
+    }
+  }
+
   // 新規ストック作成
-  async createStock(content: string, imageKeys?: string[]) {
+  async createStock(content: string, imageKeys?: string[], tagNames?: string[]) {
     this.isSubmitting = true;
     this.error = null;
     try {
       const res = await client.api.stocks.$post({
-        json: { content, imageKeys },
+        json: { content, imageKeys, tagNames },
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -144,8 +210,10 @@ class StockStore {
       this.stats.total_stocks += 1;
       this.stats.score += 10;
 
-      // サーバーから最新の統計（streak等）を取得
+      // サーバーから最新の統計（streak等）およびタグ一覧・目標を再取得
       void this.fetchStats();
+      void this.fetchTags();
+      void this.fetchGoals();
 
       // 非同期のAIコメント生成完了を待ってバックグラウンドで再取得（1.5秒後 & 3.5秒後）
       setTimeout(() => {

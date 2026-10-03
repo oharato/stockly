@@ -217,4 +217,96 @@ describe("Stockly API Endpoints", () => {
     const postData = (await postRes.json()) as any;
     expect(postData.image_keys).toContain(uploadData.key);
   });
+
+  it("POST /api/stocks should save tags and filter by tag", async () => {
+    const mockDB = createMockDB();
+
+    // タグ付きストックを投稿
+    const postRes = await app.request(
+      "/api/stocks",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "TypeScriptとSvelte5の学習記録",
+          tagNames: ["エンジニアリング", "学習"],
+        }),
+      },
+      { DB: mockDB },
+    );
+    expect(postRes.status).toBe(201);
+    const postData = (await postRes.json()) as any;
+    expect(postData.tags).toContain("エンジニアリング");
+    expect(postData.tags).toContain("学習");
+
+    // 別タグのストックを投稿
+    await app.request(
+      "/api/stocks",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "今日のランニング記録",
+          tagNames: ["健康"],
+        }),
+      },
+      { DB: mockDB },
+    );
+
+    // タグ一覧取得
+    const tagsRes = await app.request("/api/tags", {}, { DB: mockDB });
+    expect(tagsRes.status).toBe(200);
+    const tagsData = (await tagsRes.json()) as any;
+    expect(tagsData.tags.length).toBeGreaterThanOrEqual(2);
+
+    // タグで絞り込み
+    const filterRes = await app.request("/api/stocks?tag=エンジニアリング", {}, { DB: mockDB });
+    expect(filterRes.status).toBe(200);
+    const filterData = (await filterRes.json()) as any;
+    expect(filterData.stocks.length).toBe(1);
+    expect(filterData.stocks[0].content).toContain("TypeScript");
+  });
+
+  it("Goals CRUD endpoints should work", async () => {
+    const mockDB = createMockDB();
+
+    // 1. 新規目標作成
+    const createRes = await app.request(
+      "/api/goals",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "フロントエンド技術の習熟",
+          category: "learning",
+          color: "teal",
+        }),
+      },
+      { DB: mockDB },
+    );
+    expect(createRes.status).toBe(201);
+    const goalData = (await createRes.json()) as any;
+    expect(goalData.id).toBeDefined();
+    expect(goalData.title).toBe("フロントエンド技術の習熟");
+
+    // 2. 目標一覧取得
+    const listRes = await app.request("/api/goals", {}, { DB: mockDB });
+    expect(listRes.status).toBe(200);
+    const listData = (await listRes.json()) as any;
+    expect(listData.goals.length).toBe(1);
+    expect(listData.goals[0].id).toBe(goalData.id);
+
+    // 3. 目標削除
+    const deleteRes = await app.request(
+      `/api/goals/${goalData.id}`,
+      { method: "DELETE" },
+      { DB: mockDB },
+    );
+    expect(deleteRes.status).toBe(200);
+
+    // 4. 削除後の目標一覧取得
+    const afterDeleteRes = await app.request("/api/goals", {}, { DB: mockDB });
+    const afterDeleteData = (await afterDeleteRes.json()) as any;
+    expect(afterDeleteData.goals.length).toBe(0);
+  });
 });
