@@ -12,6 +12,7 @@ import {
 } from "../db/stocks";
 import { getUserStats, getStreakContext, incrementRediscoveryCount } from "../db/stats";
 import { listGoals, createGoal, deleteGoal, listTags } from "../db/goals";
+import { formatAsMarkdown, formatAsCsv } from "../utils/export";
 
 export type Bindings = {
   DB: D1Database;
@@ -105,6 +106,60 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
           500,
         );
       }
+    },
+  )
+
+  // データエクスポート (JSON, Markdown, CSV)
+  .get(
+    "/api/export",
+    zValidator(
+      "query",
+      z.object({
+        format: z.enum(["json", "markdown", "csv"]).default("json"),
+      }),
+    ),
+    async (c) => {
+      const { format } = c.req.valid("query");
+      const todayJST = getJSTDateString();
+      const stocks = await listStocks(c.env.DB);
+
+      if (format === "markdown") {
+        const md = formatAsMarkdown(stocks, todayJST);
+        return new Response(md, {
+          headers: {
+            "Content-Type": "text/markdown; charset=utf-8",
+            "Content-Disposition": `attachment; filename="stockly-export-${todayJST}.md"`,
+          },
+        });
+      }
+
+      if (format === "csv") {
+        const csv = formatAsCsv(stocks);
+        return new Response(csv, {
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename="stockly-export-${todayJST}.csv"`,
+          },
+        });
+      }
+
+      // JSON default
+      const jsonBody = JSON.stringify(
+        {
+          exported_at: new Date().toISOString(),
+          date_jst: todayJST,
+          count: stocks.length,
+          stocks,
+        },
+        null,
+        2,
+      );
+      return new Response(jsonBody, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="stockly-export-${todayJST}.json"`,
+        },
+      });
     },
   )
 

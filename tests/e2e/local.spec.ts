@@ -85,6 +85,15 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
     // 統計・目標レポート領域が表示されること
     await expect(page.locator("text=目標・ビジョン")).toBeVisible({ timeout: 5000 });
 
+    // データエクスポート & バックアップセクションが表示されること
+    await expect(page.locator("text=データエクスポート & バックアップ")).toBeVisible();
+    await expect(page.locator("button:has-text('JSON')")).toBeVisible();
+    await expect(page.locator("button:has-text('Markdown')")).toBeVisible();
+    await expect(page.locator("button:has-text('CSV')")).toBeVisible();
+
+    // スクリーンショット保存 (視覚自己レビュー用)
+    await page.screenshot({ path: `${process.env.HOME}/snap/chromium/current/preview/stats-export.png`, fullPage: true });
+
     // 「ストック」タブで元に戻る
     const stockTabButton = page.locator("button:has-text('ストック')").last();
     await stockTabButton.click();

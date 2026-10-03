@@ -13,6 +13,10 @@
     BarChart3,
     Check,
     X,
+    Download,
+    FileText,
+    FileSpreadsheet,
+    FileCode,
   } from "lucide-svelte";
   import { getDateKey } from "../utils/date";
 
@@ -101,6 +105,82 @@
     } finally {
       isSubmittingGoal = false;
     }
+  }
+
+  // データエクスポート処理
+  let exportingFormat = $state<string | null>(null);
+
+  async function handleExport(format: "json" | "markdown" | "csv") {
+    exportingFormat = format;
+    try {
+      const res = await fetch(`/api/export?format=${format}`);
+      if (!res.ok) throw new Error("API Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      const ext = format === "markdown" ? "md" : format;
+      a.download = `stockly-export-${today}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // オフライン・エラー時のローカルフォールバック
+      downloadLocally(format);
+    } finally {
+      exportingFormat = null;
+    }
+  }
+
+  function downloadLocally(format: "json" | "markdown" | "csv") {
+    const today = new Date().toISOString().slice(0, 10);
+    let content = "";
+    let mime = "";
+    const ext = format === "markdown" ? "md" : format;
+
+    if (format === "json") {
+      content = JSON.stringify({ exported_at: new Date().toISOString(), stocks }, null, 2);
+      mime = "application/json";
+    } else if (format === "markdown") {
+      content =
+        `# Stockly エクスポート (${today})\n\n累計ストック件数: ${stocks.length}件\n\n---\n\n` +
+        stocks
+          .map(
+            (s) =>
+              `## ${s.created_at}\n\n${s.tags && s.tags.length > 0 ? `**タグ**: ${s.tags.map((t) => `#${t}`).join(" ")}\n\n` : ""}${s.content}\n\n${s.ai_comment ? `> 💡 **AIからの問いかけ**: ${s.ai_comment}\n\n` : ""}---`,
+          )
+          .join("\n\n");
+      mime = "text/markdown";
+    } else {
+      content =
+        "id,created_at,content,tags,ai_comment\r\n" +
+        stocks
+          .map((s) => {
+            const escape = (str: string | null | undefined) =>
+              str ? `"${str.replace(/"/g, '""')}"` : '""';
+            return [
+              escape(s.id),
+              escape(s.created_at),
+              escape(s.content),
+              escape(s.tags ? s.tags.join(";") : ""),
+              escape(s.ai_comment),
+            ].join(",");
+          })
+          .join("\r\n");
+      mime = "text/csv";
+    }
+
+    const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stockly-export-${today}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 </script>
 
@@ -376,5 +456,56 @@
         {/each}
       </div>
     {/if}
+  </section>
+
+  <!-- 5. データエクスポート & バックアップ -->
+  <section class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+        <Download class="w-4 h-4" />
+      </div>
+      <div>
+        <h3 class="text-xs font-bold text-slate-800">データエクスポート & バックアップ</h3>
+        <p class="text-[11px] text-slate-400">蓄積したストック全件をノートアプリや分析用に書き出せます</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-2 pt-2">
+      <!-- JSON -->
+      <button
+        type="button"
+        onclick={() => handleExport("json")}
+        disabled={exportingFormat !== null}
+        class="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-all text-center cursor-pointer group disabled:opacity-50"
+      >
+        <FileCode class="w-5 h-5 text-indigo-600 mb-1 group-hover:scale-110 transition-transform" />
+        <span class="text-xs font-bold text-slate-800">JSON</span>
+        <span class="text-[10px] text-slate-400 mt-0.5">完全バックアップ</span>
+      </button>
+
+      <!-- Markdown -->
+      <button
+        type="button"
+        onclick={() => handleExport("markdown")}
+        disabled={exportingFormat !== null}
+        class="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40 transition-all text-center cursor-pointer group disabled:opacity-50"
+      >
+        <FileText class="w-5 h-5 text-emerald-600 mb-1 group-hover:scale-110 transition-transform" />
+        <span class="text-xs font-bold text-slate-800">Markdown</span>
+        <span class="text-[10px] text-slate-400 mt-0.5">Obsidian / Notion</span>
+      </button>
+
+      <!-- CSV -->
+      <button
+        type="button"
+        onclick={() => handleExport("csv")}
+        disabled={exportingFormat !== null}
+        class="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/40 transition-all text-center cursor-pointer group disabled:opacity-50"
+      >
+        <FileSpreadsheet class="w-5 h-5 text-amber-600 mb-1 group-hover:scale-110 transition-transform" />
+        <span class="text-xs font-bold text-slate-800">CSV</span>
+        <span class="text-[10px] text-slate-400 mt-0.5">スプレッドシート</span>
+      </button>
+    </div>
   </section>
 </div>
