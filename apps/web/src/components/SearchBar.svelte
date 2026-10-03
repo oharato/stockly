@@ -43,11 +43,21 @@
       type="button"
       onclick={handleClear}
       aria-label="検索条件をクリア"
-      class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+      class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
     >
       <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200">
-        <X class="w-3 h-3" />
+        <X class="w-3 h-3 text-slate-500" />
       </div>
     </button>
   {/if}
 </div>
+
+<style>
+  /* ブラウザ標準のクリアボタンを非表示化（重複防止） */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
+</style>
