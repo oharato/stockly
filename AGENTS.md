@@ -28,10 +28,19 @@
 - **プロジェクト名**: **Stockly**（日々の内省・ストック PWA アプリ）
 - **リポジトリ構成**: pnpm Monorepo (`apps/web`, `apps/api`, `infra`)
 - **フロントエンド**: **Svelte 5** (Runes: `$state`, `$derived`, `$effect`) + Tailwind CSS + `lucide-svelte` + `vite-plugin-pwa`
-- **統合ツールチェーン**: **Vite+ (`vp`)**
-  - ビルド・開発: `vp dev`, `vp build`
-  - 品質チェック: `vp check`（型チェック + Oxlint + Oxfmt）
-  - 単体テスト: `vp test`（Vitest）
+- **フロントエンド**: **Svelte 5** (Runes: `$state`, `$derived`, `$effect`) + Tailwind CSS + `lucide-svelte` + `vite-plugin-pwa`
+- **統合ツールチェーン**: **Vite+ (`vp`) の徹底活用**
+  - **原則**: 分散した個別ツール（ESLint, Prettier, 独立したVitest依存, Turborepo等）を個別導入・実行せず、Vite+ (`vp`) に組み込まれた高速Rust製ツールチェーン（Rolldown, Vitest, Oxlint, Oxfmt, tsdown, Vite Task）を最大限に活用すること。
+  - **日常コマンド規約**:
+    - **コード品質検査**: `vp check`（型チェック + Oxlint + Oxfmt の一括高速実行。自動修正は `vp check --fix`）
+    - **ステージング検査**: `vp staged`（コミット対象ファイルのみを対象に高速リント・フォーマット）
+    - **テスト実行**: `vp test --run`（内蔵 Vitest 5 による高速単体・統合テスト）
+    - **開発サーバー**: `vp dev`（内蔵 Vite 8 による超高速 HMR）
+    - **プロダクションビルド**: `vp build`（内蔵 Rolldown バンドラー）
+    - **タスク実行 & キャッシュ**: `vp run <task>` または `vpr <task>`（自動キャッシュ対応のモノレポタスクランナー）
+    - **パッケージ管理**: `vp install` (`vp i`), `vp add`, `vp remove`, `vp update`（pnpm を透過的にラップ）
+  - **設定の一元化**: モノレポ全体の lint, fmt, check 等のルールはルートの `vite.config.ts`（`defineConfig`）で overrides を用いて一元管理する。
+  - **仕様・ドキュメント参照**: 公式ドキュメント `https://viteplus.dev/llms-full.txt` および `https://viteplus.dev/guide/` に準拠する。
 - **バックエンド API**: **Cloudflare Workers + Hono** (TypeScript)
 - **型共有**: **Zod + Hono RPC (`hono/client`)**
   - バックエンドで定義した Zod スキーマと `AppType` をフロントエンドで型のみ参照し、完全な End-to-End 型安全性を保つ。
@@ -53,7 +62,10 @@
    - `docs`: ドキュメント更新
    - `refactor`: リファクタリング
 3. **コミット前必須チェック**:
-   - コミットを作成する前に、必ず `vp check`（型検査・Oxlint・Oxfmt）がエラーゼロでパスすることを確認する。
+   - コミットを作成する前に、必ず以下を実行してエラーゼロであることを確認する:
+     - `vp check`（型検査・Oxlint・Oxfmt の確認、必要に応じて `--fix`）
+     - `vp test --run`（自動テスト全件パス）
+     - （コミット対象のみの検証には `vp staged` も活用）
 
 ---
 
