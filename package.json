@@ -2,11 +2,13 @@
   "name": "stockly-workspace",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter web dev",
     "check": "vp check",
     "test": "vp test",
-    "build": "pnpm --recursive build"
+    "build": "pnpm --recursive build",
+    "import:csv": "node --experimental-strip-types scripts/import-csv.ts"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
