@@ -43,3 +43,19 @@ export async function getStreakContext(db: D1Database): Promise<{
     last_stock_date: stats?.last_stock_date ?? null,
   };
 }
+
+/**
+ * 再発見を記録し、カウントとスコアを加算 (+1件, +20pt)
+ */
+export async function incrementRediscoveryCount(db: D1Database): Promise<UserStats> {
+  await db
+    .prepare(
+      `UPDATE user_stats
+       SET rediscovery_count = rediscovery_count + 1,
+           score = score + 20
+       WHERE id = 'default'`,
+    )
+    .run();
+
+  return getUserStats(db);
+}

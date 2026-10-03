@@ -65,6 +65,29 @@ describe("Live Server E2E Critical Path Tests", () => {
     }
     expect(aiCommentGenerated).toBe(true);
 
+    // 5. キーワード検索の検証
+    const searchRes = await fetch(`${API_BASE_URL}/api/stocks?q=E2E自動テスト`);
+    expect(searchRes.status).toBe(200);
+    const searchData = (await searchRes.json()) as any;
+    expect(searchData.stocks.length).toBeGreaterThanOrEqual(1);
+    expect(searchData.stocks[0].content).toContain("E2E自動テスト");
+
+    // 6. 今日の再発見 API の検証
+    const rediscoveryRes = await fetch(`${API_BASE_URL}/api/stocks/rediscovery`);
+    expect(rediscoveryRes.status).toBe(200);
+    const rediscoveryData = (await rediscoveryRes.json()) as any;
+    // ストックが1件以上存在するため再発見カードが返る
+    expect(rediscoveryData.rediscovery).toBeDefined();
+
+    // 7. 再発見の読了アクション (+20pt, +1 rediscovery_count)
+    const readRediscoveryRes = await fetch(`${API_BASE_URL}/api/stocks/rediscovery/read`, {
+      method: "POST",
+    });
+    expect(readRediscoveryRes.status).toBe(200);
+    const readRediscoveryData = (await readRediscoveryRes.json()) as any;
+    expect(readRediscoveryData.success).toBe(true);
+    expect(readRediscoveryData.stats.rediscovery_count).toBeGreaterThan(0);
+
     // 5. 統計情報の取得 (スコア・ストリークが正しく加算されていること)
     const statsRes = await fetch(`${API_BASE_URL}/api/stats`);
     expect(statsRes.status).toBe(200);

@@ -6,10 +6,12 @@
 
   interface Props {
     stocks: StockItem[];
+    searchQuery?: string;
     onDeleteStock?: (id: string) => void;
+    onClearSearch?: () => void;
   }
 
-  let { stocks = [], onDeleteStock }: Props = $props();
+  let { stocks = [], searchQuery = "", onDeleteStock, onClearSearch }: Props = $props();
 
   // 日付ごとにグループ化
   let groupedStocks = $derived.by(() => {
@@ -36,21 +38,43 @@
   });
 </script>
 
-<div class="px-4 py-4 space-y-6 pb-28">
+<div class="space-y-6">
   {#if stocks.length === 0}
-    <!-- 空状態（Empty State） -->
-    <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <div class="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 mb-4 shadow-xs">
-        <Sparkles class="w-8 h-8" />
+    {#if searchQuery}
+      <!-- 検索結果 0 件 -->
+      <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3 shadow-2xs">
+          <Calendar class="w-6 h-6" />
+        </div>
+        <h3 class="text-sm font-bold text-slate-700 mb-1">見つかりませんでした</h3>
+        <p class="text-xs text-slate-400 max-w-xs leading-relaxed mb-4">
+          「{searchQuery}」に一致するストックはありません。
+        </p>
+        {#if onClearSearch}
+          <button
+            type="button"
+            onclick={onClearSearch}
+            class="text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200/80 px-3.5 py-1.5 rounded-full hover:bg-teal-100 transition-colors"
+          >
+            検索条件をクリア
+          </button>
+        {/if}
       </div>
-      <h3 class="text-base font-bold text-slate-800 mb-1">日々の学びをストックしよう</h3>
-      <p class="text-xs text-slate-500 max-w-xs leading-relaxed mb-6">
-        今日感じたこと、反省、次に試したいことを自由に書き留めてみましょう。AI パートナーがあなたの思考を整理します。
-      </p>
-      <div class="inline-flex items-center gap-2 text-xs font-semibold text-teal-700 bg-teal-50/80 border border-teal-200/80 px-3.5 py-1.5 rounded-full">
-        <span>下の「＋」ボタンから投稿</span>
+    {:else}
+      <!-- 初期空状態（Empty State） -->
+      <div class="flex flex-col items-center justify-center py-16 px-4 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 mb-4 shadow-xs">
+          <Sparkles class="w-8 h-8" />
+        </div>
+        <h3 class="text-base font-bold text-slate-800 mb-1">日々の学びをストックしよう</h3>
+        <p class="text-xs text-slate-500 max-w-xs leading-relaxed mb-6">
+          今日感じたこと、反省、次に試したいことを自由に書き留めてみましょう。AI パートナーがあなたの思考を整理します。
+        </p>
+        <div class="inline-flex items-center gap-2 text-xs font-semibold text-teal-700 bg-teal-50/80 border border-teal-200/80 px-3.5 py-1.5 rounded-full">
+          <span>下の「＋」ボタンから投稿</span>
+        </div>
       </div>
-    </div>
+    {/if}
   {:else}
     <!-- グループ化されたタイムライン -->
     {#each groupedStocks as group (group.dateKey)}

@@ -24,7 +24,18 @@ export function createMockDB() {
             args,
             async all() {
               if (query.includes("FROM stocks")) {
-                const results = [...stocks].reverse().map((s) => ({
+                let filtered = [...stocks];
+                if (query.includes("WHERE s.content LIKE ?") && args[0]) {
+                  const pattern = String(args[0]).replace(/%/g, "").toLowerCase();
+                  filtered = filtered.filter((s) =>
+                    String(s.content).toLowerCase().includes(pattern),
+                  );
+                }
+                if (query.includes("substr(s.created_at, 1, 10) < ?") && args[0]) {
+                  const targetDate = String(args[0]);
+                  filtered = filtered.filter((s) => s.created_at.slice(0, 10) < targetDate);
+                }
+                const results = filtered.reverse().map((s) => ({
                   ...s,
                   ai_comment: aiComments[s.id] || null,
                 }));
@@ -52,6 +63,11 @@ export function createMockDB() {
                 aiComments[stockId] = comment;
                 return { success: true };
               }
+              if (query.includes("rediscovery_count = rediscovery_count + 1")) {
+                userStats.rediscovery_count += 1;
+                userStats.score += 20;
+                return { success: true };
+              }
               return { success: true };
             },
           };
@@ -71,6 +87,14 @@ export function createMockDB() {
             return { ...userStats };
           }
           return null;
+        },
+        async run() {
+          if (query.includes("rediscovery_count = rediscovery_count + 1")) {
+            userStats.rediscovery_count += 1;
+            userStats.score += 20;
+            return { success: true };
+          }
+          return { success: true };
         },
       };
     },

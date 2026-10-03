@@ -80,3 +80,23 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - `vp check`: 0 errors / 0 warnings、コードフォーマット完全適合
   - `vp test --run`: 7 スイート 31 テスト全件パス (< 1s)
   - `vp run -r build`: Rolldown による Web (77.59 kB) & API プロダクションビルド成功
+
+---
+
+## 📋 Milestone 3 (「今日の再発見」 & 検索 & 画像添付) 詳細タスクリスト (進行中 🚀)
+
+- [x] **3.1 本文キーワード検索機能**:
+  - `GET /api/stocks?q=...` クエリパラメータ対応と D1 SQL `LIKE` 検索（`apps/api/src/db/stocks.ts`）
+  - 単体・結合テスト追加（`apps/api/test/db/stocks.test.ts`, `apps/api/test/stocks.test.ts`）
+  - `SearchBar.svelte`: 入力・クリアボタン・インクリメンタルデバウンス検索 UI
+  - 検索結果 0 件時の Empty State UI（`Timeline.svelte`）
+- [x] **3.2 1日1件固定の「今日の再発見」機能**:
+  - `GET /api/stocks/rediscovery`: 過去ストックから JST 日付ハッシュによる決定論的な 1 日 1 件固定抽出（`apps/api/src/db/stocks.ts`）
+  - `POST /api/stocks/rediscovery/read`: 読了時のスコア加算 (+20pt) & 再発見数加算 (+1件)（`apps/api/src/db/stats.ts`）
+  - `RediscoveryCard.svelte`: タイムライン最上部に配置される稲妻アイコン `⚡ 今日の再発見` カード
+  - 「振り返った (+20pt)」インタラクティブ読了アクションボタン
+  - E2E テスト拡充（実サーバーに対する検索および再発見サイクルの検証）
+- [ ] **3.3 Cloudflare R2 による画像添付機能**:
+  - `wrangler.jsonc` R2 バインディング設定
+  - 画像アップロード API & プレサインドURL
+  - モーダルでの画像添付プレビュー & カードでの画像表示

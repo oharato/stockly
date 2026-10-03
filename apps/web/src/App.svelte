@@ -1,6 +1,8 @@
 <script lang="ts">
   import Header from "./components/Header.svelte";
   import Timeline from "./components/Timeline.svelte";
+  import SearchBar from "./components/SearchBar.svelte";
+  import RediscoveryCard from "./components/RediscoveryCard.svelte";
   import BottomNav from "./components/BottomNav.svelte";
   import StockInputModal from "./components/StockInputModal.svelte";
   import { stockStore } from "./lib/stocks.svelte";
@@ -16,6 +18,7 @@
   $effect(() => {
     stockStore.fetchStocks();
     stockStore.fetchStats();
+    stockStore.fetchRediscovery();
   });
 
   // ストック追加ハンドラー
@@ -47,15 +50,38 @@
     <!-- メインコンテンツ領域 -->
     <main class="flex-1">
       {#if currentTab === "timeline"}
-        <!-- タイムライン表示 -->
-        {#if stockStore.isLoading && stockStore.stocks.length === 0}
-          <div class="py-24 flex flex-col items-center justify-center text-slate-400 gap-2">
-            <Loader2 class="w-6 h-6 animate-spin text-teal-600" />
-            <span class="text-xs">ストックを読み込み中...</span>
-          </div>
-        {:else}
-          <Timeline stocks={stockStore.stocks} onDeleteStock={handleDeleteStock} />
-        {/if}
+        <div class="px-4 pt-3.5 pb-28 space-y-4">
+          <!-- 検索バー -->
+          <SearchBar
+            value={stockStore.searchQuery}
+            onInput={(val) => stockStore.setSearchQuery(val)}
+            onClear={() => stockStore.clearSearch()}
+          />
+
+          <!-- 今日の再発見カード (検索中でなく、再発見ストックがある場合に表示) -->
+          {#if !stockStore.searchQuery && stockStore.rediscovery}
+            <RediscoveryCard
+              stock={stockStore.rediscovery}
+              isRead={stockStore.isRediscoveryRead}
+              onRead={() => stockStore.readRediscovery()}
+            />
+          {/if}
+
+          <!-- タイムライン表示 -->
+          {#if stockStore.isLoading && stockStore.stocks.length === 0}
+            <div class="py-24 flex flex-col items-center justify-center text-slate-400 gap-2">
+              <Loader2 class="w-6 h-6 animate-spin text-teal-600" />
+              <span class="text-xs">ストックを読み込み中...</span>
+            </div>
+          {:else}
+            <Timeline
+              stocks={stockStore.stocks}
+              searchQuery={stockStore.searchQuery}
+              onDeleteStock={handleDeleteStock}
+              onClearSearch={() => stockStore.clearSearch()}
+            />
+          {/if}
+        </div>
       {:else}
         <!-- ふりかえり・統計タブ表示 -->
         <div class="p-4 space-y-4 pb-28">

@@ -57,4 +57,44 @@ describe("D1 Data Access Functions (src/db)", () => {
     const afterDeleteStats = await getUserStats(mockDB);
     expect(afterDeleteStats.total_stocks).toBe(0);
   });
+
+  it("should filter stocks by keyword query", async () => {
+    const mockDB = createMockDB();
+
+    await createStockWithStats(mockDB, {
+      id: "search-1",
+      content: "Svelte 5 Runes はリアクティビティがシンプルで素晴らしい",
+      now: "2026-10-03T10:00:00.000Z",
+      newStreak: 1,
+      newMaxStreak: 1,
+      todayJST: "2026-10-03",
+    });
+
+    await createStockWithStats(mockDB, {
+      id: "search-2",
+      content: "Cloudflare D1 と Workers の連携が高速で快適",
+      now: "2026-10-03T11:00:00.000Z",
+      newStreak: 1,
+      newMaxStreak: 1,
+      todayJST: "2026-10-03",
+    });
+
+    // キーワード "Svelte" で検索
+    const svelteResults = await listStocks(mockDB, "Svelte");
+    expect(svelteResults).toHaveLength(1);
+    expect(svelteResults[0]?.id).toBe("search-1");
+
+    // キーワード "Cloudflare" で検索
+    const cfResults = await listStocks(mockDB, "Cloudflare");
+    expect(cfResults).toHaveLength(1);
+    expect(cfResults[0]?.id).toBe("search-2");
+
+    // 該当なしキーワード
+    const noResults = await listStocks(mockDB, "存在しない単語");
+    expect(noResults).toHaveLength(0);
+
+    // 空文字や空白のみは全件取得
+    const allResults = await listStocks(mockDB, "  ");
+    expect(allResults).toHaveLength(2);
+  });
 });

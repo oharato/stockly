@@ -3,8 +3,13 @@ import { zValidator } from "@hono/zod-validator";
 import { createStockSchema, type Stock } from "../schemas/stock";
 import { calculateStreak, getJSTDateString } from "../utils/streak";
 import { generateAndSaveAIComment } from "../services/ai";
-import { listStocks, createStockWithStats, deleteStockWithStats } from "../db/stocks";
-import { getUserStats, getStreakContext } from "../db/stats";
+import {
+  listStocks,
+  createStockWithStats,
+  deleteStockWithStats,
+  getDailyRediscoveryStock,
+} from "../db/stocks";
+import { getUserStats, getStreakContext, incrementRediscoveryCount } from "../db/stats";
 
 export type Bindings = {
   DB: D1Database;
@@ -12,10 +17,24 @@ export type Bindings = {
 };
 
 export const stockRoutes = new Hono<{ Bindings: Bindings }>()
-  // ストック一覧取得
+  // ストック一覧取得（キーワード検索対応）
   .get("/api/stocks", async (c) => {
-    const stocks = await listStocks(c.env.DB);
+    const query = c.req.query("q");
+    const stocks = await listStocks(c.env.DB, query);
     return c.json({ stocks });
+  })
+
+  // 今日の再発見取得（1日1件固定）
+  .get("/api/stocks/rediscovery", async (c) => {
+    const todayJST = getJSTDateString();
+    const rediscovery = await getDailyRediscoveryStock(c.env.DB, todayJST);
+    return c.json({ rediscovery });
+  })
+
+  // 再発見の読了記録 (+1件, +20pt)
+  .post("/api/stocks/rediscovery/read", async (c) => {
+    const stats = await incrementRediscoveryCount(c.env.DB);
+    return c.json({ success: true, stats });
   })
 
   // ストック新規作成

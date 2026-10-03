@@ -187,6 +187,26 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
 - **成果**:
   - `routes/stocks.ts`: 113 行から 78 行へスリム化。HTTP ルーティング・バリデーション・非同期 AI オーケストレーションに専念。
   - `services/ai.ts`: SQL 直接記述を廃止し、`insertAIComment` を利用。
-  - `apps/api/test/db/stocks.test.ts`: DB 層の個別動作を検証する単体テスト（1件）を追加。
   - `vp check`: 34 ファイル検査で 0 warnings, 0 errors。
   - `vp test --run`: 8 スイート・全 32 テストが **1.04s** で全件パス。
+
+#### 10. Milestone 3: キーワード検索 & 1日1件「今日の再発見」機能 (完了)
+
+- **Step 3-1: 本文キーワード検索機能**:
+  - `apps/api/src/db/stocks.ts`: `listStocks(db, query?: string)` に D1 SQLite の `WHERE s.content LIKE ?` 部分一致検索ロジックを追加。
+  - `apps/api/src/routes/stocks.ts`: `GET /api/stocks?q=...` クエリパラメータに対応。
+  - `apps/api/test/db/stocks.test.ts` & `apps/api/test/stocks.test.ts`: キーワード部分一致検索、該当なし、空文字全件取得の単体・結合テストを追加。
+  - `apps/web/src/components/SearchBar.svelte`: ルーペアイコン、クリアボタン、リアルタイム入力対応の検索バーコンポーネントを作成。
+  - `apps/web/src/lib/stocks.svelte.ts`: 250ms デバウンス付きインクリメンタル検索処理をストアに組み込み。
+  - `apps/web/src/components/Timeline.svelte`: 検索結果 0 件時の専用 Empty State UI を追加。
+- **Step 3-2: 1日1件固定の「今日の再発見 (Rediscovery)」機能**:
+  - `apps/api/src/db/stocks.ts`: `getDailyRediscoveryStock` 関数。過去（今日より前）のストックから、JST 日付（'YYYY-MM-DD'）のハッシュ値を用いた決定論的インデックス選択により、リロードしても同日中は同じ過去ストックが 1 件固定で表示されるロジックを実装。過去データ未作成時は最古のストックを安全にフォールバック。
+  - `apps/api/src/db/stats.ts`: `incrementRediscoveryCount` 関数。読了アクション時に `rediscovery_count + 1`, `score + 20pt` を更新。
+  - `apps/api/src/routes/stocks.ts`: `GET /api/stocks/rediscovery` および `POST /api/stocks/rediscovery/read` エンドポイントを新設。
+  - `apps/web/src/components/RediscoveryCard.svelte`: タイムライン最上部に配置される、アンバー色グラデーションの「⚡ 今日の再発見」カード。過去の投稿日時の表示、本文プレビュー、AIコメント、「振り返った (+20pt)」インタラクティブ読了ボタン。
+  - `apps/web/src/lib/stocks.svelte.ts`: `fetchRediscovery()` および `readRediscovery()` アクションでスコアと読了状態を即時更新。
+- **品質・テスト検証**:
+  - `apps/web/test/e2e/api-e2e.test.ts`: 実サーバーに対するキーワード検索、再発見カード取得、読了アクション（スコア・再発見数加算）の E2E 検証を追加。
+  - `vp check`: **0 warnings, 0 errors, 54 files formatted**
+  - `vp test --run`: **全 8 スイート 35 テストが 1.08s で全件パス**
+  - `vp run -r build`: Web (84.93 kB, gzip 30.28 kB) & API の高速プロダクションビルド成功。

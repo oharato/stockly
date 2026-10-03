@@ -13,14 +13,23 @@ class StockStore {
   isSubmitting = $state(false);
   error = $state<string | null>(null);
 
+  searchQuery = $state("");
+  private searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  rediscovery = $state<StockItem | null>(null);
+  isRediscoveryRead = $state(false);
+
   // 一覧取得
-  async fetchStocks(silent = false) {
+  async fetchStocks(silent = false, query?: string) {
     if (!silent) {
       this.isLoading = true;
     }
     this.error = null;
+    const q = query !== undefined ? query : this.searchQuery;
     try {
-      const res = await client.api.stocks.$get();
+      const res = await client.api.stocks.$get({
+        query: q ? { q } : {},
+      });
       if (!res.ok) throw new Error("ストックの取得に失敗しました");
       const data = await res.json();
       this.stocks = data.stocks as StockItem[];
@@ -31,6 +40,26 @@ class StockStore {
         this.isLoading = false;
       }
     }
+  }
+
+  // 検索クエリ更新（250ms デバウンス付きインクリメンタル検索）
+  setSearchQuery(q: string) {
+    this.searchQuery = q;
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
+    }
+    this.searchTimeout = setTimeout(() => {
+      void this.fetchStocks(true, q);
+    }, 250);
+  }
+
+  // 検索クリア
+  clearSearch() {
+    this.searchQuery = "";
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
+    }
+    void this.fetchStocks(true, "");
   }
 
   // 統計情報取得
@@ -47,6 +76,34 @@ class StockStore {
       };
     } catch {
       // 統計エラーはサイレントに処理
+    }
+  }
+
+  // 今日の再発見を取得
+  async fetchRediscovery() {
+    try {
+      const res = await client.api.stocks.rediscovery.$get();
+      if (!res.ok) return;
+      const data = await res.json();
+      this.rediscovery = (data.rediscovery as StockItem) ?? null;
+    } catch {
+      // サイレントに処理
+    }
+  }
+
+  // 再発見を読了記録 (+20pt, +1 rediscovery_count)
+  async readRediscovery() {
+    try {
+      const res = await client.api.stocks.rediscovery.read.$post();
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && data.stats) {
+        this.stats.score = data.stats.score;
+        this.stats.rediscovery_count = data.stats.rediscovery_count;
+        this.isRediscoveryRead = true;
+      }
+    } catch {
+      // サイレントに処理
     }
   }
 
