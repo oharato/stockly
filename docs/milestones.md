@@ -153,8 +153,12 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - 過去データ 46 件の本番インポート実行 (`pnpm import:csv --remote --db stockly-db-prod`) 完了
   - カスタムドメイン **`https://stockly.ohchans.com`** に Cloudflare Workers Static Assets で全スタック（PWA + API）を一元デプロイ完了
   - Workers AI を最新 **Meta Llama 3.3 70B** にアップグレードし、知的なオープンクエスチョン生成を確認
-- [ ] **5.5 セキュリティ & シングルユーザー認証**:
-  - Cloudflare Access (Zero Trust) による個人専用保護、または PIN パスコード保護の設定
+- [x] **5.5 セキュリティ & シングルユーザー認証 (Cloudflare Zero Trust Access & cf CLI)**:
+  - `cf@1.0.0-beta.12` をモノレポ全体に導入し、`pnpm cf` コマンドおよび `apps/api` の `cf dev` / `cf deploy` を整備
+  - Cloudflare Access ワンタッチ切替スクリプト（`scripts/access-toggle.ts`）の実装
+  - `pnpm run access:on`（普段の保護モード: .env の管理者宛てワンタイムPIN認証）
+  - `pnpm run access:off`（開発・検証バイパスモード: 全アクセス即座通過）
+  - `pnpm run access:status`（現在の保護状態確認）
 
 ---
 

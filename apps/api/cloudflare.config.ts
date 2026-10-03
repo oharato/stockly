@@ -2,17 +2,24 @@ import { bindings, defineConfig } from "cf/config";
 
 export default defineConfig({
   worker: {
-    name: "stockly-api",
+    name: "stockly",
     compatibilityDate: "2024-09-23",
     compatibilityFlags: ["nodejs_compat"],
     entrypoint: "src/index.ts",
+    assets: {
+      notFoundHandling: "single-page-application",
+      runWorkerFirst: ["/api/*"],
+    },
     env: {
       DB: bindings.d1({
-        name: "stockly-db",
-        id: "local-stockly-db",
+        name: "stockly-db-prod",
+        id: "5ad75ef2-f2a1-419e-bc68-90ee139455b7",
       }),
-      // Workers AI (Milestone 2 で有効化)
-      // AI: bindings.ai({}),
+      STORAGE: bindings.r2({
+        name: "stockly-media-prod",
+      }),
+      AI: bindings.ai({}),
+      ASSETS: bindings.assets(),
     },
   },
 });

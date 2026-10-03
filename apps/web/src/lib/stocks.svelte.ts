@@ -16,6 +16,26 @@ class StockStore {
   isLoading = $state(false);
   isSubmitting = $state(false);
   error = $state<string | null>(null);
+  isAuthError = $state(false);
+
+  private handleError(err: unknown, defaultMsg: string) {
+    const rawMsg = err instanceof Error ? err.message : defaultMsg;
+    if (
+      typeof window !== "undefined" &&
+      window.navigator.onLine &&
+      (rawMsg.includes("Failed to fetch") || rawMsg.includes("NetworkError"))
+    ) {
+      this.isAuthError = true;
+      this.error =
+        "認証セッションが切れたか、保護されています。再読み込みしてログインしてください。";
+    } else if (typeof window !== "undefined" && !window.navigator.onLine) {
+      this.isAuthError = false;
+      this.error = "オフラインです。インターネット接続を確認してください。";
+    } else {
+      this.isAuthError = false;
+      this.error = rawMsg;
+    }
+  }
 
   searchQuery = $state("");
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -29,6 +49,7 @@ class StockStore {
       this.isLoading = true;
     }
     this.error = null;
+    this.isAuthError = false;
     const q = query !== undefined ? query : this.searchQuery;
     const t = tag !== undefined ? tag : this.selectedTag;
     try {
@@ -43,7 +64,7 @@ class StockStore {
       const data = await res.json();
       this.stocks = data.stocks as StockItem[];
     } catch (err: unknown) {
-      this.error = err instanceof Error ? err.message : "エラーが発生しました";
+      this.handleError(err, "エラーが発生しました");
     } finally {
       if (!silent) {
         this.isLoading = false;
@@ -176,7 +197,7 @@ class StockStore {
       this.goals = [...this.goals, created];
       return created;
     } catch (err: unknown) {
-      this.error = err instanceof Error ? err.message : "目標作成エラー";
+      this.handleError(err, "目標作成エラー");
       throw err;
     }
   }
@@ -188,7 +209,7 @@ class StockStore {
       if (!res.ok) throw new Error("目標の削除に失敗しました");
       this.goals = this.goals.filter((g) => g.id !== id);
     } catch (err: unknown) {
-      this.error = err instanceof Error ? err.message : "目標削除エラー";
+      this.handleError(err, "目標削除エラー");
     }
   }
 
@@ -196,6 +217,7 @@ class StockStore {
   async createStock(content: string, imageKeys?: string[], tagNames?: string[]) {
     this.isSubmitting = true;
     this.error = null;
+    this.isAuthError = false;
     try {
       const res = await client.api.stocks.$post({
         json: { content, imageKeys, tagNames },
@@ -223,7 +245,7 @@ class StockStore {
         void this.fetchStocks(true);
       }, 3500);
     } catch (err: unknown) {
-      this.error = err instanceof Error ? err.message : "エラーが発生しました";
+      this.handleError(err, "エラーが発生しました");
       throw err;
     } finally {
       this.isSubmitting = false;
@@ -241,7 +263,7 @@ class StockStore {
       this.stocks = this.stocks.filter((s) => s.id !== id);
       this.stats.total_stocks = Math.max(0, this.stats.total_stocks - 1);
     } catch (err: unknown) {
-      this.error = err instanceof Error ? err.message : "削除エラーが発生しました";
+      this.handleError(err, "削除エラーが発生しました");
     }
   }
 }

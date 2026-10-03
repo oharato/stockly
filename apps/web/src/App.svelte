@@ -62,9 +62,19 @@
 
     <!-- エラーバナー (ある場合) -->
     {#if stockStore.error}
-      <div class="mx-4 mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
-        <AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
-        <span class="flex-1">{stockStore.error}</span>
+      <div class="mx-4 mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+        <div class="flex items-center gap-2 flex-1">
+          <AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
+          <span class="flex-1 leading-relaxed">{stockStore.error}</span>
+        </div>
+        {#if stockStore.isAuthError}
+          <button
+            onclick={() => window.location.reload()}
+            class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-medium text-[11px] rounded-lg shrink-0 transition"
+          >
+            ログイン
+          </button>
+        {/if}
       </div>
     {/if}
 

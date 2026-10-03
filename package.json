@@ -5,13 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api run dev",
+    "deploy": "pnpm --filter api run deploy",
     "check": "vp check",
+    "check:fix": "vp check --fix",
     "test": "vp test",
     "build": "pnpm --recursive build",
+    "cf": "cf",
+    "access:status": "node --experimental-strip-types scripts/access-toggle.ts status",
+    "access:on": "node --experimental-strip-types scripts/access-toggle.ts on",
+    "access:off": "node --experimental-strip-types scripts/access-toggle.ts off",
     "import:csv": "node --experimental-strip-types scripts/import-csv.ts"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
+    "cf": "1.0.0-beta.12",
     "vite-plus": "1.0.0"
   },
   "packageManager": "pnpm@12.3.4"

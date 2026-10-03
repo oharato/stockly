@@ -47,6 +47,10 @@
 - **メディアストレージ**: **Cloudflare R2** (Milestone 3 以降)
 - **AIエンジン**: **Cloudflare Workers AI** (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`、予備: `@cf/meta/llama-3.2-3b-instruct`)
 - **IaC (インフラコード化)**: **Pulumi** (TypeScript: `@pulumi/cloudflare`)
+- **Cloudflare CLI ツールチェーン**: **`cf` (`cf@1.0.0-beta.12`) の徹底使用**
+  - **原則**: 従来の `wrangler` ではなく、Cloudflare 公式の次世代統合 CLI **`cf`** を全面的に使用すること。
+  - Workers, D1, R2, DNS, WAF, そして Zero Trust Access の操作を一元実行する（例: `pnpm cf dev`, `pnpm cf deploy`, `pnpm cf d1 ...`）。
+  - `pnpm run access:on` / `pnpm run access:off` による本番ドメインの保護・バイパス即時切替を活用すること。
 
 ---
 

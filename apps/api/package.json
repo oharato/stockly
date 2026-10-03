@@ -6,8 +6,8 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "cf dev",
+    "deploy": "cf deploy",
     "test": "vp test"
   },
   "dependencies": {
