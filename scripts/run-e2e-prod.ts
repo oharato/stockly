@@ -72,8 +72,30 @@ function main() {
       execSync("node --experimental-strip-types scripts/access-toggle.ts off", {
         stdio: "inherit",
       });
-      // Cloudflare エッジへの設定伝播待ち（3秒）
-      spawnSync("sleep", ["3"]);
+      // Cloudflare エッジへの設定伝播を確実に待機 (最大15秒ポーリング)
+      console.log("⏳ [E2E Prod Runner] エッジへのポリシー反映を確認中...");
+      let isReady = false;
+      for (let i = 0; i < 15; i++) {
+        try {
+          const res = execSync(
+            "curl -s -o /dev/null -w '%{http_code}' https://stockly.ohchans.com",
+            {
+              encoding: "utf-8",
+            },
+          ).trim();
+          if (res === "200") {
+            isReady = true;
+            console.log(`✅ [E2E Prod Runner] エッジ反映確認完了 (${i + 1}s: HTTP 200 OK)`);
+            break;
+          }
+        } catch {
+          // ignore
+        }
+        spawnSync("sleep", ["1"]);
+      }
+      if (!isReady) {
+        console.warn("⚠️ エッジ反映が完了していない可能性がありますがテストを続行します");
+      }
     }
 
     console.log("🧪 [E2E Prod Runner] 本番 E2E テストを実行します...");

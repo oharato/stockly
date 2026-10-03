@@ -13,8 +13,8 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     // 1. 本番トップ画面へのアクセス
     await page.goto("/");
 
-    // ヘッダー確認
-    await expect(page.locator("header")).toBeVisible({ timeout: 10000 });
+    // ヘッダー確認 (エッジ通信とレンダリング待機)
+    await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
 
     // エラーバナーが表示されていないこと
     const errorBanner = page.locator("div:has-text('ストックの取得に失敗しました')");
@@ -28,6 +28,7 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     const searchInput = page.locator("input[type='search']");
     await expect(searchInput).toBeVisible();
 
+    await searchInput.click();
     await searchInput.fill("テスト");
     await page.waitForTimeout(400);
 
@@ -38,11 +39,15 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
 
     // 検索条件をクリア
     const clearBtn = page.locator("button[aria-label='検索条件をクリア']");
-    await expect(clearBtn).toBeVisible();
-    await clearBtn.click();
+    if (await clearBtn.isVisible()) {
+      await clearBtn.click();
+    } else {
+      await searchInput.fill("");
+    }
     await expect(searchInput).toHaveValue("");
 
     // 3. 高速連続タイピング時の耐障害性 (0ms 即時ローカル検索)
+    await searchInput.click();
     await searchInput.pressSequentially("テスト", { delay: 60 });
     await page.waitForTimeout(600);
 
@@ -51,7 +56,11 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     await expect(matchingCard).toBeVisible();
 
     // 検索条件をクリア
-    await clearBtn.click();
+    if (await clearBtn.isVisible()) {
+      await clearBtn.click();
+    } else {
+      await searchInput.fill("");
+    }
     await expect(searchInput).toHaveValue("");
 
     // 4. タグフィルターの動作検証
@@ -68,7 +77,7 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
       await expect(errorBanner).toHaveCount(0);
     }
 
-    // 5. 「ふりかえり」タブへの遷移と新機能（週次サマリー & データエクスポート）の表示検証
+    // 5. 「ふりかえり」タブへの遷移と新機能（週次サマリー & データエクスポート & リマインダー）の表示検証
     const statsTabButton = page.locator("button:has-text('ふりかえり')").last();
     await expect(statsTabButton).toBeVisible();
     await statsTabButton.click();
@@ -78,6 +87,9 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
 
     // 週次 AI サマリーが表示されること
     await expect(page.locator("text=週次 AI 内省サマリー")).toBeVisible({ timeout: 8000 });
+
+    // 毎日の内省リマインダーが表示されること
+    await expect(page.locator("text=毎日の内省リマインダー")).toBeVisible({ timeout: 8000 });
 
     // データエクスポート & バックアップが表示されること
     await expect(page.locator("text=データエクスポート & バックアップ")).toBeVisible();

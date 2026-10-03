@@ -260,10 +260,27 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
 - **Step 5-3: Cloudflare Access 認証保護**: 管理者メールへのワンタイム PIN 認証 (`access:on` / `access:off`) を導入。
 - **Step 5-4: Playwright E2E テスト基盤整備**: ローカル起動アプリ用 (`test:e2e:local`) と本番用 (`test:e2e:prod`) の 2 系統の E2E 自動テストを構築。
 
-#### 13. Milestone 6: 追加拡張 & CI/CD 自動化 (Future Roadmap)
+#### 13. Milestone 6: 追加拡張 & CI/CD 自動化 (完了)
 
-- **Step 6-1: Web Push 通知・リマインダー**: Service Worker + Push API による内省促進通知。
-- **Step 6-2: データエクスポート・バックアップ**: JSON / Markdown 形式での一括出力。
-- **Step 6-3: 週次 AI サマリーレポート**: Workers AI による週間の内省まとめ生成。
-- **Step 6-4: Cloudflare Access 保護下の本番 E2E 自動実行**:
-  - Service Token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) を Playwright の `extraHTTPHeaders` に組み込み、Access ON の状態でも本番 E2E テストを自動通過させるセキュアなテストパイプラインの構築。
+- **Step 6-1: Web Push 通知・リマインダー (完了)**:
+  - `apps/web/src/lib/notifications.ts`: `Notification` 権限リクエスト、localStorage 保存、Service Worker `showNotification` 連携ロジック。
+  - `apps/web/src/components/StatsReport.svelte`: 毎日の内省リマインダー UI（通知許可案内、時刻指定 `<input type="time">`、トグルスイッチ、テスト通知送信機能）。
+- **Step 6-2: データエクスポート・バックアップ (完了)**:
+  - `apps/api/src/utils/export.ts`: Markdown および RFC 4180 準拠 CSV フォーマッター。
+  - `apps/api/src/routes/stocks.ts`: `GET /api/export?format=json|markdown|csv`。
+  - `apps/web/src/components/StatsReport.svelte`: JSON / Markdown / CSV のワンタップダウンロードカード。
+- **Step 6-3: 週次 AI サマリーレポート (完了)**:
+  - `apps/api/migrations/0003_create_weekly_summaries.sql`: `weekly_summaries` テーブル作成・適用。
+  - `apps/api/src/services/summary-ai.ts`: Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) による週次内省分析（注力テーマ、思考の軌跡と深まり、来週への問いかけ）& 決定論的フォールバック。
+  - `apps/api/src/routes/stocks.ts`: `GET /api/summary/weekly`, `POST /api/summary/weekly/generate`。
+  - `apps/web/src/components/StatsReport.svelte`: サマリーカード表示 & オンデマンド生成機能。
+- **Step 6-4: Cloudflare Access 保護下の本番 E2E 自動実行基盤 (完了)**:
+  - `scripts/run-e2e-prod.ts`: 現在の Access 状態検知 ➔ 一時 Bypass (OFF) ➔ エッジ反映ポーリング確認 (HTTP 200 OK) ➔ Playwright 本番 E2E テスト実行 ➔ `finally` / シグナルでの確実な Access ON 自動復元。
+  - `playwright.config.ts`: Service Token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) ヘッダー注入対応。
+  - `apps/web/src/lib/stocks.svelte.ts`: エッジレートリミット (HTTP 429) に対する 1.2 秒バックオフ自動リトライ機構。
+  - `tests/e2e/prod.spec.ts`: 初期ロード ➔ キーワード検索 ➔ 高速タイピング耐性 ➔ タグフィルター ➔ ふりかえりタブ（週次サマリー・リマインダー・エクスポート）を一気通貫で検証（4〜5秒台でパス）。
+- **検証実績**:
+  - `vp check`: 0 warnings, 0 lint errors, 0 type errors.
+  - `vp test --run`: 12 テストファイル（51 テスト）全件パス。
+  - `pnpm test:e2e:local`: 3 テスト全件パス (11.3s)。
+  - `pnpm test:e2e:prod`: 1 テスト全件パス (5.2s) & Access 自動復元確認。
