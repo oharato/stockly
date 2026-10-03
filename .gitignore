@@ -41,3 +41,7 @@ Thumbs.db
 *.jpg
 *.jpeg
 ignore/
+
+# Test outputs
+test-results/
+playwright-report/

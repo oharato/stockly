@@ -14,6 +14,9 @@ export default defineConfig({
       typeCheck: true,
     },
   },
+  test: {
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
+  },
   staged: {
     "*": "vp check --fix",
   },

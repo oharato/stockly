@@ -10,6 +10,7 @@
     "check": "vp check",
     "check:fix": "vp check --fix",
     "test": "vp test",
+    "test:e2e": "playwright test",
     "build": "pnpm --recursive build",
     "cf": "cf",
     "access:status": "node --experimental-strip-types scripts/access-toggle.ts status",
@@ -18,6 +19,7 @@
     "import:csv": "node --experimental-strip-types scripts/import-csv.ts"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "24.13.3",
     "cf": "1.0.0-beta.12",
     "vite-plus": "1.0.0"

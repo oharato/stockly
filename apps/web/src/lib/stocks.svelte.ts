@@ -37,12 +37,33 @@ class StockStore {
     }
   }
 
+  allStocks = $state<StockItem[]>([]);
   searchQuery = $state("");
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
   private searchAbortController: AbortController | null = null;
 
   rediscovery = $state<StockItem | null>(null);
   isRediscoveryRead = $state(false);
+
+  // ローカルキャッシュに基づく即時フィルタリング (0ms 反映)
+  private applyLocalFilter() {
+    if (this.allStocks.length === 0) return;
+
+    const q = this.searchQuery.trim().toLowerCase();
+    const t = this.selectedTag;
+
+    let filtered = this.allStocks;
+
+    if (t) {
+      filtered = filtered.filter((s) => s.tags && s.tags.includes(t));
+    }
+
+    if (q) {
+      filtered = filtered.filter((s) => s.content.toLowerCase().includes(q));
+    }
+
+    this.stocks = filtered;
+  }
 
   // 一覧取得（検索クエリ & タグフィルター対応）
   async fetchStocks(silent = false, query?: string, tag?: string | null) {
@@ -61,6 +82,10 @@ class StockStore {
 
     const q = query !== undefined ? query : this.searchQuery;
     const t = tag !== undefined ? tag : this.selectedTag;
+
+    // まずローカルキャッシュから即座に画面を更新 (体感 0ms)
+    this.applyLocalFilter();
+
     try {
       const queryParams: Record<string, string> = {};
       if (q && q.trim()) queryParams.q = q.trim();
@@ -88,12 +113,29 @@ class StockStore {
             if (raw) detailMsg += `: ${raw.slice(0, 100)}`;
           } catch {}
         }
+
+        // すでにローカルキャッシュがありフィルタリング表示できている場合は、
+        // 429 (Rate Limit) や一時エラーで画面をエラーバナーで壊さず、ローカル結果を維持する
+        if (this.allStocks.length > 0 && (status === 429 || status === 503)) {
+          console.warn("Server search throttled, using local cached results:", status);
+          this.applyLocalFilter();
+          return;
+        }
+
         console.error("fetchStocks API error:", status, detailMsg);
         throw new Error(detailMsg);
       }
 
       const data = await res.json();
-      this.stocks = data.stocks as StockItem[];
+      const serverStocks = data.stocks as StockItem[];
+
+      // クエリやタグがない全件取得の場合はマスターキャッシュを更新
+      if (!q && !t) {
+        this.allStocks = serverStocks;
+        this.applyLocalFilter();
+      } else {
+        this.stocks = serverStocks;
+      }
     } catch (err: unknown) {
       // ユーザーの入力継続によるリクエスト中断はエラー扱いしない
       if (
@@ -102,6 +144,14 @@ class StockStore {
       ) {
         return;
       }
+
+      // ローカルキャッシュがあれば画面を維持
+      if (this.allStocks.length > 0 && (q || t)) {
+        console.warn("Search request failed, falling back to local filter:", err);
+        this.applyLocalFilter();
+        return;
+      }
+
       this.handleError(err, "エラーが発生しました");
     } finally {
       if (!silent) {
@@ -110,26 +160,31 @@ class StockStore {
     }
   }
 
-  // タグ選択フィルター
+  // タグ選択フィルター (即時ローカル反映 + サーバー同期)
   selectTag(tag: string | null) {
     this.selectedTag = tag;
+    this.applyLocalFilter();
     void this.fetchStocks(true);
   }
 
-  // 検索クエリ更新（250ms デバウンス付きインクリメンタル検索）
+  // 検索クエリ更新（即時ローカル反映 + 350ms デバウンス付きサーバー同期）
   setSearchQuery(q: string) {
     this.searchQuery = q;
+    // キー入力と同時に 0ms でローカル結果を表示！
+    this.applyLocalFilter();
+
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
     }
     this.searchTimeout = setTimeout(() => {
       void this.fetchStocks(true, q);
-    }, 250);
+    }, 350);
   }
 
-  // 検索クリア
+  // 検索クリア (即時ローカル反映)
   clearSearch() {
     this.searchQuery = "";
+    this.applyLocalFilter();
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
     }
@@ -265,8 +320,9 @@ class StockStore {
         throw new Error((errorData as { message?: string }).message || "作成に失敗しました");
       }
       const newStock = (await res.json()) as StockItem;
-      // 先頭に追加
-      this.stocks = [newStock, ...this.stocks];
+      // マスターキャッシュおよび表示用リストを即時更新
+      this.allStocks = [newStock, ...this.allStocks];
+      this.applyLocalFilter();
       this.stats.total_stocks += 1;
       this.stats.score += 10;
 
@@ -297,8 +353,9 @@ class StockStore {
         param: { id },
       });
       if (!res.ok) throw new Error("削除に失敗しました");
-      // ローカル配列から除外
-      this.stocks = this.stocks.filter((s) => s.id !== id);
+      // ローカル配列およびマスターキャッシュから除外
+      this.allStocks = this.allStocks.filter((s) => s.id !== id);
+      this.applyLocalFilter();
       this.stats.total_stocks = Math.max(0, this.stats.total_stocks - 1);
     } catch (err: unknown) {
       this.handleError(err, "削除エラーが発生しました");
