@@ -252,3 +252,18 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `vp test --run`: **全 8 スイート 38 テスト全件パス**
   - ヘッドレス Chromium (`/snap/bin/chromium --headless`) による視覚自己レビューを実施。タイムライン、タグフィルターバー、投稿モーダルのタグ選択、ふりかえり画面の活動バーチャート・メトリクスカードの表示崩れがないことを確認済み。
   - `vp run -r build`: Web & API の高速プロダクションビルド成功。
+
+#### 12. Milestone 5: 本番 IaC プロビジョニング & 次世代 CLI 統合 (完了)
+
+- **Step 5-1: Pulumi IaC & 本番プロビジョニング**: D1 (`stockly-db-prod`), R2 (`stockly-media-prod`) をコード化・適用完了。
+- **Step 5-2: 本番デプロイ & cf CLI 移行**: `cf@1.0.0-beta.12` をモノレポ全体に配備。`https://stockly.ohchans.com` へのデプロイを確立。
+- **Step 5-3: Cloudflare Access 認証保護**: 管理者メールへのワンタイム PIN 認証 (`access:on` / `access:off`) を導入。
+- **Step 5-4: Playwright E2E テスト基盤整備**: ローカル起動アプリ用 (`test:e2e:local`) と本番用 (`test:e2e:prod`) の 2 系統の E2E 自動テストを構築。
+
+#### 13. Milestone 6: 追加拡張 & CI/CD 自動化 (Future Roadmap)
+
+- **Step 6-1: Web Push 通知・リマインダー**: Service Worker + Push API による内省促進通知。
+- **Step 6-2: データエクスポート・バックアップ**: JSON / Markdown 形式での一括出力。
+- **Step 6-3: 週次 AI サマリーレポート**: Workers AI による週間の内省まとめ生成。
+- **Step 6-4: Cloudflare Access 保護下の本番 E2E 自動実行**:
+  - Service Token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) を Playwright の `extraHTTPHeaders` に組み込み、Access ON の状態でも本番 E2E テストを自動通過させるセキュアなテストパイプラインの構築。

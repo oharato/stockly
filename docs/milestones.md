@@ -170,3 +170,14 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - JSON / Markdown 形式での一括エクスポート機能
 - [ ] **6.3 週次 AI サマリーレポート**:
   - 1週間のストックを Workers AI が統合要約し、週末の成長サマリーを提示
+- [ ] **6.4 Cloudflare Access 保護下での本番 E2E 自動テスト実行基盤 (Service Token / 認証再利用)**:
+  - **背景・課題**:
+    - 本番環境（`https://stockly.ohchans.com`）が Cloudflare Access (ON) で保護されている場合、Playwright E2E テストが Access ログイン画面（ワンタイム PIN 要求）で停止しテストが失敗する。
+  - **対策アーキテクチャ案**:
+    - **案A (推奨 / CI・本番標準): Cloudflare Access Service Token 連携**:
+      - `cf` CLI またはダッシュボードで E2E 自動テスト用の Service Token (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) を発行し、Access Policy に「Service Token 一致時は Allow/Bypass」ルールを定義。
+      - Playwright 設定 (`playwright.config.ts`) の `extraHTTPHeaders` にトークンヘッダーを注入し、PIN 認証画面を介さずに安全に本番テストを実行。
+    - **案B: Playwright `storageState` (認証 Cookie `CF_AppSession` のキャッシュ・再利用)**:
+      - 認証セッション Cookie を `.auth/session.json` に保持し、ブラウザコンテキストに注入して認証済みセッションとしてテストを実行。
+    - **案C: テスト実行ラッパースクリプト (一時バイパス & 自動復旧)**:
+      - `pnpm run test:e2e:prod` 実行時、スクリプトが `cf` CLI 経由で一時的に Bypass に切り替え、テスト完了後に `finally` で確実に `access:on` に自動復帰させる。
