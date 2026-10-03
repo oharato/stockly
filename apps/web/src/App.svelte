@@ -9,6 +9,7 @@
   import StockInputModal from "./components/StockInputModal.svelte";
   import StatsReport from "./components/StatsReport.svelte";
   import { stockStore } from "./lib/stocks.svelte";
+  import { forceClearCacheAndReload } from "./lib/cache-utils";
   import { Flame, Trophy, Sparkles, Loader2, AlertCircle } from "lucide-svelte";
 
   // タブ状態
@@ -68,16 +69,25 @@
           <AlertCircle class="w-4 h-4 shrink-0 text-rose-500" />
           <span class="flex-1 leading-relaxed">{stockStore.error}</span>
         </div>
-        {#if stockStore.isAuthError}
+        <div class="flex items-center gap-1.5 shrink-0">
           <button
-            onclick={() => {
-              window.location.href = "/api/auth/login";
-            }}
-            class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-medium text-[11px] rounded-lg shrink-0 transition"
+            onclick={forceClearCacheAndReload}
+            class="px-2 py-1 bg-white hover:bg-slate-50 border border-rose-300 text-rose-700 font-medium text-[11px] rounded-lg transition"
+            title="PWAキャッシュを消去して最新版を取得"
           >
-            ログイン
+            更新
           </button>
-        {/if}
+          {#if stockStore.isAuthError}
+            <button
+              onclick={() => {
+                window.location.href = "/api/auth/login";
+              }}
+              class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-medium text-[11px] rounded-lg transition"
+            >
+              ログイン
+            </button>
+          {/if}
+        </div>
       </div>
     {/if}
 

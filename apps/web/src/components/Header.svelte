@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Flame, Sparkles } from "lucide-svelte";
+  import { Flame, Sparkles, RotateCw } from "lucide-svelte";
+  import { forceClearCacheAndReload } from "../lib/cache-utils";
 
   interface Props {
     streak?: number;
@@ -7,6 +8,12 @@
   }
 
   let { streak = 0, totalStocks = 0 }: Props = $props();
+  let isClearing = $state(false);
+
+  async function handleRefresh() {
+    isClearing = true;
+    await forceClearCacheAndReload();
+  }
 </script>
 
 <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
@@ -32,5 +39,16 @@
       <span class="text-slate-400 font-normal">計</span>
       <span class="font-bold text-slate-700 ml-0.5">{totalStocks}</span>
     </div>
+
+    <!-- キャッシュクリア＆強制再読み込みボタン -->
+    <button
+      type="button"
+      onclick={handleRefresh}
+      aria-label="キャッシュをクリアして再読み込み"
+      title="最新バージョンに更新"
+      class="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+    >
+      <RotateCw class={`w-4 h-4 ${isClearing ? "animate-spin text-teal-600" : ""}`} />
+    </button>
   </div>
 </header>
