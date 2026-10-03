@@ -11,7 +11,8 @@
       "database_id": "local-stockly-db",
     },
   ],
-  "ai": {
-    "binding": "AI",
-  },
+  // Workers AI (Milestone 2 で有効化)
+  // "ai": {
+  //   "binding": "AI"
+  // }
 }

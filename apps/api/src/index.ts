@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { stockRoutes } from "./routes/stocks";
 
 export type Bindings = {
   DB: D1Database;
-  AI: Ai;
+  AI?: Ai;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -18,10 +19,13 @@ app.use(
   }),
 );
 
-// ヘルスチェックエンドポイント
-const routes = app.get("/api/health", (c) => {
-  return c.json({ status: "ok", time: new Date().toISOString() });
-});
+// ヘルスチェックとストックルートの結合
+const routes = app
+  .get("/api/health", (c) => {
+    return c.json({ status: "ok", time: new Date().toISOString() });
+  })
+  .route("/", stockRoutes);
 
 export type AppType = typeof routes;
+export * from "./schemas/stock";
 export default app;

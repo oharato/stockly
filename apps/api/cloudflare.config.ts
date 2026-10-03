@@ -11,7 +11,8 @@ export default defineConfig({
         name: "stockly-db",
         id: "local-stockly-db",
       }),
-      AI: bindings.ai({}),
+      // Workers AI (Milestone 2 で有効化)
+      // AI: bindings.ai({}),
     },
   },
 });
