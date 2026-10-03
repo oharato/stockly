@@ -66,7 +66,7 @@ class StockStore {
   }
 
   // 一覧取得（検索クエリ & タグフィルター対応）
-  async fetchStocks(silent = false, query?: string, tag?: string | null) {
+  async fetchStocks(silent = false, query?: string, tag?: string | null, retryCount = 0) {
     if (!silent) {
       this.isLoading = true;
     }
@@ -114,12 +114,20 @@ class StockStore {
           } catch {}
         }
 
-        // すでにローカルキャッシュがありフィルタリング表示できている場合は、
-        // 429 (Rate Limit) や一時エラーで画面をエラーバナーで壊さず、ローカル結果を維持する
-        if (this.allStocks.length > 0 && (status === 429 || status === 503)) {
-          console.warn("Server search throttled, using local cached results:", status);
-          this.applyLocalFilter();
-          return;
+        // 429 (Rate Limit) や 503 時の耐障害性
+        if (status === 429 || status === 503) {
+          // すでにローカルキャッシュがある場合はエラーバナーを出さずローカル結果を維持
+          if (this.allStocks.length > 0) {
+            console.warn("Server search throttled, using local cached results:", status);
+            this.applyLocalFilter();
+            return;
+          }
+          // 初回ロードでキャッシュがない場合は1.2秒待って自動リトライ (最大2回)
+          if (retryCount < 2) {
+            console.warn(`[429 Throttled] Retrying initial load in 1.2s (attempt ${retryCount + 1}/2)...`);
+            await new Promise((r) => setTimeout(r, 1200));
+            return await this.fetchStocks(silent, query, tag, retryCount + 1);
+          }
         }
 
         console.error("fetchStocks API error:", status, detailMsg);
