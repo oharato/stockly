@@ -134,3 +134,23 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `vite-plugin-pwa` によるスタンドアロンマニフェスト、アプリアイコン設定、Service Worker 生成を検証。
 - **End-to-End 動作確認**:
   - モーダルからの内省投稿 ➔ ローカル D1 への保存 ➔ タイムラインへの自動反映 ➔ 統計スコア加算 ➔ 削除の全サイクルが正常動作することを確認。
+- 主なコミット: `15025d6`。
+
+#### 7. テスト戦略策定 (Testing Trophy) & 単体・結合・E2Eテスト拡充 (完了)
+
+- **テスト戦略ドキュメント策定**:
+  - [`docs/test-strategy.md`](test-strategy.md): 従来の「テストピラミッド」の課題（過度なモック化、静的型付けとの重複）を分析し、現代フロントエンドで最も ROI が高い **「テストトロフィー (The Testing Trophy)」** モデルを採用。
+- **4層のテストスイート構築**:
+  1. **Static (静的検査)**: `vp check`（型検査・Oxlint・Oxfmt 一括実行）
+  2. **Unit (単体テスト)**:
+     - `apps/web/test/utils/date.test.ts`: 日付グループ化、フォーマット、時刻整形の境界値テスト（8件）
+     - `apps/api/test/schemas/stock.test.ts`: Zod スキーマバリデーション（空文字、2000文字制限、タグ）の境界値テスト（7件）
+  3. **Integration (結合テスト - トロフィーの中心層)**:
+     - `apps/api/test/helpers/mock-db.ts`: 再利用可能なインメモリ D1 モックヘルパー
+     - `apps/api/test/stocks.test.ts`: 基本的な CRUD & 統計エンドポイント結合テスト（6件）
+     - `apps/api/test/integration/stocks-workflow.test.ts`: 複数投稿 ➔ ソート順確認 ➔ 統計加算 ➔ 不正入力拒否 ➔ 削除 ➔ 整合性確認の完全ライフサイクル結合テスト（1件）
+  4. **E2E (End-to-End テスト)**:
+     - `apps/web/test/e2e/api-e2e.test.ts`: 稼働中の Cloudflare Workers + D1 サーバーに対するリアルタイム HTTP 通信テスト（1件）
+- **実行結果**:
+  - 全 5 ファイル・23 テストがわずか **663ms** で全件合格。
+

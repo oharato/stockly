@@ -1,6 +1,7 @@
 <script lang="ts">
   import StockCard from "./StockCard.svelte";
   import type { StockItem } from "../types/stock";
+  import { getDateKey, formatGroupTitle } from "../utils/date";
   import { Sparkles, Calendar } from "lucide-svelte";
 
   interface Props {
@@ -9,35 +10,6 @@
   }
 
   let { stocks = [], onDeleteStock }: Props = $props();
-
-  // 日付ラベルの整形関数
-  function getDateKey(dateStr: string): string {
-    try {
-      const d = new Date(dateStr);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    } catch {
-      return "その他";
-    }
-  }
-
-  function formatGroupTitle(dateKey: string): string {
-    if (dateKey === "その他") return dateKey;
-    const now = new Date();
-    const todayKey = getDateKey(now.toISOString());
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const yesterdayKey = getDateKey(yesterday.toISOString());
-
-    const [year, month, day] = dateKey.split("-").map(Number);
-    const dateObj = new Date(year, month - 1, day);
-    const days = ["日", "月", "火", "水", "木", "金", "土"];
-    const dayOfWeek = days[dateObj.getDay()];
-
-    let prefix = "";
-    if (dateKey === todayKey) prefix = "今日 - ";
-    else if (dateKey === yesterdayKey) prefix = "昨日 - ";
-
-    return `${prefix}${month}月${day}日 (${dayOfWeek})`;
-  }
 
   // 日付ごとにグループ化
   let groupedStocks = $derived.by(() => {

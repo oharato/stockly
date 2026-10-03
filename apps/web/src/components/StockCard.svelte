@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Trash2, Clock, Sparkles } from "lucide-svelte";
   import type { StockItem } from "../types/stock";
+  import { formatTime } from "../utils/date";
 
   interface Props {
     stock: StockItem;
@@ -9,15 +10,7 @@
 
   let { stock, onDelete }: Props = $props();
 
-  // 時刻フォーマット (例: "14:30")
-  let formattedTime = $derived.by(() => {
-    try {
-      const date = new Date(stock.created_at);
-      return date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return "";
-    }
-  });
+  let formattedTime = $derived(formatTime(stock.created_at));
 </script>
 
 <article class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/70 hover:border-slate-300 transition-all group">
