@@ -28,7 +28,6 @@
 - **プロジェクト名**: **Stockly**（日々の内省・ストック PWA アプリ）
 - **リポジトリ構成**: pnpm Monorepo (`apps/web`, `apps/api`, `infra`)
 - **フロントエンド**: **Svelte 5** (Runes: `$state`, `$derived`, `$effect`) + Tailwind CSS + `lucide-svelte` + `vite-plugin-pwa`
-- **フロントエンド**: **Svelte 5** (Runes: `$state`, `$derived`, `$effect`) + Tailwind CSS + `lucide-svelte` + `vite-plugin-pwa`
 - **統合ツールチェーン**: **Vite+ (`vp`) の徹底活用**
   - **原則**: 分散した個別ツール（ESLint, Prettier, 独立したVitest依存, Turborepo等）を個別導入・実行せず、Vite+ (`vp`) に組み込まれた高速Rust製ツールチェーン（Rolldown, Vitest, Oxlint, Oxfmt, tsdown, Vite Task）を最大限に活用すること。
   - **日常コマンド規約**:
@@ -92,3 +91,22 @@
 
 - ユーザーから「プレビューして」と指示された場合は、`0.0.0.0` でバインド起動し、ローカルURL（`http://localhost:<port>`）および同一LAN用URL（`http://<ローカルIP>:<port>`）をユーザーに案内すること。
 - Markdown やドキュメントのプレビュー時は、プロジェクト内に不要な HTML を生成せずグローバルプレビュースクリプト（`node ~/.gemini/bin/preview-server.mjs [ポート]`）を使用すること。
+
+---
+
+## 7. UI変更時の自己検証規範 (事前スクリーンショット確認)
+
+1. **ユーザー確認依頼前の視覚自己レビュー義務**:
+   - UI コンポーネントの新規実装、スタイル修正、レイアウト変更を行った際は、**ユーザーに確認依頼やプレビュー案内を出す前に、必ずエージェント自身でヘッドレスブラウザ（Chromium）または Vitest Browser Mode によるスクリーンショットを撮影し、視覚的な崩れや表示重複がないか自己レビューを行うこと**。
+2. **実行手順**:
+   - ヘッドレス Chromium で画面をキャプチャ:
+     ```bash
+     mkdir -p ~/snap/chromium/current/preview && /snap/bin/chromium --headless --disable-gpu --window-size=412,892 --screenshot=$HOME/snap/chromium/current/preview/screen.png http://localhost:5173
+     ```
+   - 生成されたスクリーンショット画像をエージェントが確認し、以下を検証する:
+     - アイコンやボタンの重複（例: ネイティブ input と独自コンポーネントの cancel button 重複）
+     - テキストの溢れ・折り返し・見切れ
+     - 配色・余白・グラデーション・アライメントの崩れ
+   - 不具合を発見した場合はユーザーに報告する前に自力で修正・再撮影を行い、**「エージェントによる視覚確認済み」** の状態で報告すること。
+3. **ファイル管理規約**:
+   - 撮影した一時スクリーンショット画像は Git 管理対象外のディレクトリ（`~/snap/chromium/current/preview/` 等）に配置し、リポジトリ内にコミットしないこと。
