@@ -108,20 +108,23 @@ Stockly は Progressive Web App (PWA) として設計されており、ネイテ
 
 ### スクリプト一覧表
 
-| コマンド             | 説明                                                 | 主な用途                                             |
-| :------------------- | :--------------------------------------------------- | :--------------------------------------------------- |
-| `pnpm dev`           | フロントエンド開発サーバー起動 (`0.0.0.0:5173`)      | UI のローカル開発・スマホ実機検証                    |
-| `pnpm dev:api`       | バックエンド API 開発サーバー起動 (`127.0.0.1:8787`) | ローカル API / D1 の開発                             |
-| `pnpm check`         | コード品質検査（型チェック + Oxlint + Oxfmt）        | コミット前の構文・型・フォーマット検査               |
-| `pnpm run check:fix` | コード品質検査 & 自動修正 (`vp check --fix`)         | フォーマットや軽微なリントの自動整形                 |
-| `pnpm test`          | 自動テスト全件実行 (`vp test --run`)                 | 単体・結合・E2E テストの検証                         |
-| `pnpm build`         | プロダクションビルド (`Rolldown`)                    | Web / API の最適化ビルド                             |
-| `pnpm deploy`        | 本番環境へのデプロイ (`cf deploy`)                   | Cloudflare Workers への即時反映                      |
-| `pnpm cf <cmd>`      | 次世代 Cloudflare CLI (`cf`) の実行                  | D1, R2, Workers, DNS 等の直接操作                    |
-| `pnpm access:status` | Cloudflare Access 保護状態の確認                     | 現在の認証モード（ON / OFF）を表示                   |
-| `pnpm access:on`     | Cloudflare Access 認証保護を有効化 (ON)              | `.env` の設定メールアドレス宛てワンタイム PIN で保護 |
-| `pnpm access:off`    | Cloudflare Access 認証を一時解除 (OFF)               | 開発・検証時に認証画面をスキップ (Bypass)            |
-| `pnpm import:csv`    | 過去メモ CSV データの D1 インポート                  | 過去データの移行・投入                               |
+| コマンド              | 説明                                                 | 主な用途                                              |
+| :-------------------- | :--------------------------------------------------- | :---------------------------------------------------- |
+| `pnpm dev`            | フロントエンド開発サーバー起動 (`0.0.0.0:5173`)      | UI のローカル開発・スマホ実機検証                     |
+| `pnpm dev:api`        | バックエンド API 開発サーバー起動 (`127.0.0.1:8787`) | ローカル API / D1 の開発                              |
+| `pnpm check`          | コード品質検査（型チェック + Oxlint + Oxfmt）        | コミット前の構文・型・フォーマット検査                |
+| `pnpm run check:fix`  | コード品質検査 & 自動修正 (`vp check --fix`)         | フォーマットや軽微なリントの自動整形                  |
+| `pnpm test`           | 自動テスト全件実行 (`vp test --run`)                 | 単体・結合テストの検証                                |
+| `pnpm test:e2e:local` | ローカル E2E テスト実行 (`playwright test`)          | ローカル起動アプリへの実ブラウザ自動テスト            |
+| `pnpm test:e2e:prod`  | 本番 E2E テスト実行 (`playwright test`)              | 本番環境 (`stockly.ohchans.com`) への実ブラウザテスト |
+| `pnpm test:e2e:all`   | 全 E2E テスト実行                                    | ローカル・本番の両プロジェクトを実行                  |
+| `pnpm build`          | プロダクションビルド (`Rolldown`)                    | Web / API の最適化ビルド                              |
+| `pnpm deploy`         | 本番環境へのデプロイ (`cf deploy`)                   | Cloudflare Workers への即時反映                       |
+| `pnpm cf <cmd>`       | 次世代 Cloudflare CLI (`cf`) の実行                  | D1, R2, Workers, DNS 等の直接操作                     |
+| `pnpm access:status`  | Cloudflare Access 保護状態の確認                     | 現在の認証モード（ON / OFF）を表示                    |
+| `pnpm access:on`      | Cloudflare Access 認証保護を有効化 (ON)              | `.env` の設定メールアドレス宛てワンタイム PIN で保護  |
+| `pnpm access:off`     | Cloudflare Access 認証を一時解除 (OFF)               | 開発・検証時に認証画面をスキップ (Bypass)             |
+| `pnpm import:csv`     | 過去メモ CSV データの D1 インポート                  | 過去データの移行・投入                                |
 
 ---
 
@@ -146,11 +149,30 @@ pnpm check
 # 自動整形・自動修正
 pnpm run check:fix
 
-# Vitest 5 による高速自動テスト実行 (9ファイル・46テストが約2秒で完了)
+# Vitest 5 による高速自動テスト実行 (9ファイル・45テストが約1秒で完了)
 pnpm test
 ```
 
-#### 3. Cloudflare Access (Zero Trust) 認証 ON / OFF 切替
+#### 3. E2E 自動ブラウザテスト (Playwright)
+
+Chromium 実ブラウザを用いたユーザー体験・クリティカルパスの自動検証環境です。
+**ローカル起動アプリ** と **本番環境アプリ** の2種類のターゲットに対応しています。
+
+```bash
+# ローカル起動アプリへの E2E テスト (ポート 8787 / 5173 を自動起動してテスト)
+pnpm run test:e2e:local
+# または
+pnpm run test:e2e
+
+# 本番環境 (https://stockly.ohchans.com) への E2E テスト
+# ※ 事前に 'pnpm run access:off' で Access をバイパスにするか、認証済み環境で実行します
+pnpm run test:e2e:prod
+
+# ローカル・本番の両方を一括実行
+pnpm run test:e2e:all
+```
+
+#### 4. Cloudflare Access (Zero Trust) 認証 ON / OFF 切替
 
 本番ドメイン（`https://stockly.ohchans.com`）のアクセス保護をターミナルから一撃で切り替えられます。
 
@@ -165,7 +187,7 @@ pnpm run access:on
 pnpm run access:off
 ```
 
-#### 4. 次世代 Cloudflare CLI (`cf`) の利用
+#### 5. 次世代 Cloudflare CLI (`cf`) の利用
 
 ```bash
 # cf CLI バージョン確認
@@ -181,7 +203,7 @@ pnpm cf zero-trust access applications list
 pnpm deploy
 ```
 
-#### 5. 過去データ移行 (CSV インポート)
+#### 6. 過去データ移行 (CSV インポート)
 
 過去に記録したメモ（CSVファイル）を Cloudflare D1 へ安全に一括インポートできます。
 
@@ -196,7 +218,7 @@ pnpm import:csv --local
 pnpm import:csv --remote --db stockly-db-prod
 ```
 
-#### 6. 本番インフラプロビジョニング (Pulumi IaC)
+#### 7. 本番インフラプロビジョニング (Pulumi IaC)
 
 Cloudflare 上に D1 データベース（`stockly-db-prod`）や R2 バケット（`stockly-media-prod`）をコードから自動作成します。
 
