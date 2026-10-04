@@ -1,10 +1,11 @@
-name: CI
+name: CI & CD
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,24 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Vite+ and Node.js
+        uses: voidzero-dev/setup-vp@v1.21.1
         with:
-          version: 12.3.4
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: "pnpm"
-
-      - name: Install Vite+ toolchain
-        run: |
-          curl -fsSL https://viteplus.dev/install.sh | bash
-          echo "$HOME/.config/vite-plus/bin" >> $GITHUB_PATH
+          node-version: "24"
+          cache: true
+          run-install: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -45,4 +36,50 @@ jobs:
         run: vp test --run
 
       - name: Build packages (vp run -r build)
-        run: vp run -r build
+        run: pnpm run build
+
+  deploy:
+    name: Deploy to Cloudflare Workers
+    needs: [test-and-check]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Vite+ and Node.js
+        uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+          run-install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend & assets
+        run: pnpm run build
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm run deploy
+
+      - name: Cache Playwright Browsers
+        if: ${{ secrets.CF_ACCESS_CLIENT_ID != '' }}
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium & System Dependencies
+        if: ${{ secrets.CF_ACCESS_CLIENT_ID != '' }}
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Post-Deploy Smoke E2E Test
+        if: ${{ secrets.CF_ACCESS_CLIENT_ID != '' }}
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: pnpm test:e2e:prod

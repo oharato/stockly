@@ -279,8 +279,20 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `playwright.config.ts` & `scripts/run-e2e-prod.ts`: `.env` の Service Token 認証情報を自動読み込み、`CF-Access-Client-Id` / `CF-Access-Client-Secret` を HTTP ヘッダーに注入して Access ON のまま直接認証テストを実行。
   - `apps/web/src/lib/stocks.svelte.ts`: エッジレートリミット (HTTP 429) に対する 1.2 秒バックオフ自動リトライ機構。
   - `tests/e2e/prod.spec.ts`: 初期ロード ➔ キーワード検索 ➔ 高速タイピング耐性 ➔ タグフィルター ➔ ふりかえりタブ（週次サマリー・リマインダー・エクスポート）を一気通貫で検証。
+- **Step 6-5: GitHub Actions CI/CD パイプライン強化 (完了)**:
+  - **最新 Actions への全面刷新**:
+    - `actions/checkout@v7` (v7.0.1)
+    - `voidzero-dev/setup-vp@v1.21.1`: Vite+、Node.js 24 LTS、pnpm、依存関係キャッシュ（pnpm store）を 1 ステップに完全統合し、CI 実行時間を大幅に高速化。
+    - `actions/cache@v6` (Playwright ブラウザキャッシュ)
+    - `actions/upload-artifact@v7` (E2E テスト結果レポート保存)
+  - **CI & CD パイプライン (`.github/workflows/ci.yml`)**:
+    - `Quality Check & Tests`: `vp check`（型検査・Oxlint・Oxfmt）➔ `vp test --run` ➔ `pnpm run build`。
+    - `Deploy to Cloudflare Workers`: `main` ブランチ push 時に自動起動。`pnpm run deploy` (`cf deploy`) で自動デプロイし、Service Token によるデプロイ直後のスモーク E2E テスト (`pnpm test:e2e:prod`) を実行。
+  - **毎日の本番 E2E 監視 (`.github/workflows/e2e-daily.yml`)**:
+    - `cron: "0 0 * * *"` (毎日 JST 9:00 / UTC 0:00) および `workflow_dispatch`（手動実行）に対応。
+    - ユーザー分離テストユーザー (`user_id: 'e2e-test'`) により、実ユーザーデータを 1 件も汚染せずに「作成・検索・タブ遷移・削除」の完全ライフサイクルを毎日本番で自動検証。
 - **検証実績**:
   - `vp check`: 0 warnings, 0 lint errors, 0 type errors.
-  - `vp test --run`: 12 テストファイル（51 テスト）全件パス。
-  - `pnpm test:e2e:local`: 3 テスト全件パス (11.3s)。
-  - `pnpm test:e2e:prod`: **Access ON (完全保護) のまま、Service Token 認証で 1 テスト全件パス (4.3s)**。
+  - `vp test --run`: 12 テストファイル（52 テスト）全件パス。
+  - `pnpm test:e2e:local`: 3 テスト全件パス (10.7s)。
+  - `pnpm test:e2e:prod`: **Access ON (完全保護) のまま、Service Token 認証で 1 テスト全件パス (4.0s)**。

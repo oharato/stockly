@@ -230,6 +230,28 @@ pnpm --filter @stockly/infra exec pulumi preview
 pnpm --filter @stockly/infra exec pulumi up -y
 ```
 
+#### 8. CI/CD & 自動デプロイ・常時監視 (GitHub Actions)
+
+GitHub Actions により、コード品質検査、単体テスト、自動デプロイ、および毎日の本番 E2E 監視が自動実行されます。
+
+- **`.github/workflows/ci.yml`**:
+  - `main` ブランチへの push または PR 時に、`voidzero-dev/setup-vp@v1.21.1` を用いて高速に型検査（`vp check`）、単体テスト（`vp test`）、ビルドを実行。
+  - `main` ブランチへの push 時は、テスト合格後に Cloudflare Workers へ自動デプロイ（`pnpm run deploy`）され、直後に本番スモーク E2E テストが実行されます。
+- **`.github/workflows/e2e-daily.yml`**:
+  - 毎日 JST 9:00 (UTC 0:00) のスケジュール実行および手動実行（`workflow_dispatch`）に対応。
+  - テストユーザー (`user_id: 'e2e-test'`) により、本番のユーザー実データを 1 件も汚染せずに「作成・検索・タブ遷移・削除」の完全ライフサイクルを毎日本番で自動検証します。
+
+##### 🔐 必要な GitHub Repository Secrets
+
+リポジトリの `Settings > Secrets and variables > Actions` に以下を設定します：
+
+| Secret 名                 | 用途                                          |
+| :------------------------ | :-------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`    | Workers デプロイ用 API トークン               |
+| `CLOUDFLARE_ACCOUNT_ID`   | Cloudflare アカウント ID                      |
+| `CF_ACCESS_CLIENT_ID`     | 本番 E2E テスト用 Service Token Client ID     |
+| `CF_ACCESS_CLIENT_SECRET` | 本番 E2E テスト用 Service Token Client Secret |
+
 ---
 
 ## 📁 ドキュメント一覧

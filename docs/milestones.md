@@ -178,11 +178,16 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
     - **Cloudflare Access Service Token 連携 (本番・CI標準)**: `cf zero-trust access service-tokens create` で `Stockly E2E Test Token` を発行。Access Application "Stockly" に `E2E Service Token Access` ポリシー（`decision: "non_identity"`）を設定。
     - **Playwright 自動ヘッダー注入 (`playwright.config.ts`)**: `.env` の `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` を検知し、`CF-Access-Client-Id` / `CF-Access-Client-Secret` を HTTP ヘッダーに自動注入。`pnpm test:e2e:prod` で即座に実行可能。
     - **完全常時保護**: Access を一切 OFF / バイパスすることなく、PIN 認証画面を透過して本番 E2E 自動テストが約 4 秒台で 100% 成功。
-    - **Read-Only の安全設計**: 本番 E2E テストは画面描画、検索、タグフィルター、タブ遷移の検証に限定し、既存ストックやストリークなどのユーザー実データには一切書き込み・影響を与えない。
+    - **テストユーザー分離 (`user_id: 'e2e-test'`) による安全な書き込みフルサイクル検証**: 実ユーザーデータ (`user_id: 'default'`) を一切汚染せず、テスト用ヘッダー `X-Stockly-User-Id: e2e-test` で「作成 ➔ 検索 ➔ タイピング耐性 ➔ 削除」のライフサイクルを安全に自動検証。
     - **手動切替スクリプト**: 必要に応じてワンタッチで保護状態を変更できる `scripts/access-toggle.ts`（`pnpm run access:on` / `pnpm run access:off` / `pnpm run access:status`）も完備。
 - [x] **6.5 D1 テスト基盤の刷新（手書きモック全廃 ➔ 本物インメモリ SQLite & マイグレーション自動適用）**:
   - **課題解消**: 初期実装の 238 行の手書きクエリ判定モック（`query.includes`）を完全撤廃。SQL カラムやクエリ変更時の手動モック追随コストをゼロ化。
   - **本物 SQLite エンジン導入 (`node:sqlite`)**: Node.js LTS (v24.13.0+) 組み込みの `DatabaseSync(':memory:')` を採用し、外部依存ゼロ・起動 1.1 秒で全テストが走る超高速インメモリ D1 基盤を構築。
-  - **マイグレーション自動ロード**: `apps/api/migrations/*.sql`（0001〜0004）を昇順で自動適用。
+  - **マイグレーション自動ロード**: `apps/api/migrations/*.sql`（0001〜0005）を昇順で自動適用。
   - **完全な制約検証**: `PRAGMA foreign_keys = ON;` を有効化し、外部キー制約違反や SQL 構文エラーをテスト実行時に 100% 検出可能に強化。
   - **公式最新スタック検証の文書化**: `@cloudflare/vitest-plugin` および `miniflare` との互換性検証結果（Vite+ 内蔵 Vitest 5 との整合性）を `docs/test-strategy.md` に詳細記録。
+- [x] **6.6 GitHub Actions CI/CD パイプライン強化 (最新 Action・高速化・自動デプロイ・毎日本番E2E)**:
+  - **公式最新 Action への刷新**: `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7`。
+  - **Vite+ 公式アクション導入による劇的高速化**: `voidzero-dev/setup-vp@v1.21.1` を採用。Vite+ CLI、Node.js 24 LTS、pnpm、依存関係キャッシュ（pnpm store）を 1 ステップで構築し、CI 実行時間を大幅短縮。
+  - **自動デプロイ (CD)**: `main` ブランチ push 時に品質検査・単体テスト通過後、Cloudflare Workers へ自動デプロイ (`cf deploy`)。Service Token が設定されていればデプロイ直後のスモーク E2E テストも自動実行。
+  - **毎日の本番 E2E 監視 (`.github/workflows/e2e-daily.yml`)**: 毎日 UTC 0:00 (JST 9:00) の cron 実行および `workflow_dispatch` 手動実行に対応。Playwright ブラウザキャッシュとテストユーザー分離により、本番環境の健全性を常時自律監視。
