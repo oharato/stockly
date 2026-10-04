@@ -137,3 +137,47 @@ Kent C. Dodds（Testing Library 作者）が提唱した **「テストトロフ
   - `apps/api/test/helpers/mock-db.ts` を完全廃止。
   - `apps/api/vitest.config.ts` で `cloudflareTest()` を設定し、テスト実行前に `cloudflare:test` の `applyD1Migrations(env.DB, migrations)` を呼び出す公式標準パターンへ移行。
   - これにより、D1 だけでなく Workers AI や KV、R2 バインディングも一元的にテストランタイム内から直接アクセス可能となる。
+
+---
+
+## 6. CI/CD & 本番 E2E 自動化・耐久テスト戦略
+
+### 6.1 パイプラインの役割分離（CI/CD vs 日次本番 E2E）
+
+| ワークフロー             | ファイル                          | トリガー                             | 主な処理 & 所要時間                                                                                                                                                                                                             |
+| :----------------------- | :-------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **CI & CD**              | `.github/workflows/ci.yml`        | `main` への push / PR                | **高速パス (~30秒)**: `voidzero-dev/setup-vp` による Vite+ キャッシュ活用、`vp check`（型・リント・フォーマット）、`vp test --run`、Rolldown ビルド、`pnpm run deploy`（`cf deploy`）による Cloudflare Workers 本番自動デプロイ |
+| **Daily Production E2E** | `.github/workflows/e2e-daily.yml` | 毎朝 09:00 JST / `workflow_dispatch` | **高信頼検証 (~1分)**: 実本番環境（`https://stockly.ohchans.com`）に対するヘッドレス Chromium を用いたストック投稿・検索・削除・タブ遷移・レートリミット耐久のフルサイクル自動検証                                              |
+
+### 6.2 Playwright キャッシュアーキテクチャ
+
+ブラウザバイナリのダウンロード（約 150MB）による CI 遅延を最小化するため、以下の分離キャッシュ設計を導入：
+
+1. **OS 依存パッケージの常時インストール**:
+   - `pnpm exec playwright install-deps chromium` は高速（約 2〜3 秒）かつ OS パッケージキャッシュと衝突しにくいため常時実行。
+2. **ブラウザ本体のキー別キャッシュ**:
+   - `~/.cache/ms-playwright` を `pnpm-lock.yaml` のハッシュ値でキャッシュ。
+   - `if: steps.playwright-cache.outputs.cache-hit != 'true'` により、キャッシュヒット時は `playwright install chromium` のダウンロードを完全にスキップ。
+
+### 6.3 データセンター IP / Cloudflare Bot Challenge 回避設計
+
+GitHub Actions ランナー（Azure データセンター IP）から Cloudflare の保護下にある本番サイトにアクセスする際、以下の課題と解決策を採用：
+
+1. **課題（Bot Fight Mode / Managed Challenge）**:
+   - データセンター IP から Headless Chromium のブラウザ内 `fetch` を用いて `POST /api/stocks` を実行すると、Cloudflare のエッジ WAF が自動化ボットと判定し、HTTP 403（`Just a moment...` の JavaScript チャレンジ）を返してリクエストがブロックされる。
+2. **解決策（Node.js API プロキシ委譲）**:
+   - Playwright の `context.route("**/*")` でブラウザ通信を一括インターセプト。
+   - `/api/*` へのリクエストを検知した場合、ブラウザの `sec-ch-ua` や `HeadlessChrome` 等の自動化ブラウザ指紋ヘッダーを除去し、クリーンな API クライアントヘッダー（`User-Agent: Stockly-E2E-Runner/1.0` + Cloudflare Access Service Token）として Node.js の Playwright `request.fetch()` に委譲。
+   - レスポンスを `route.fulfill()` でブラウザへ返すことで、ブラウザ上の UI 描画・DOM 状態遷移・モーダル開閉・検索・削除のフルテストを本番環境のまま 100% 安定して完走させる。
+
+### 6.4 テストユーザー分離 & クリーンアップ規約
+
+- **ユーザー ID 分離**:
+  - 本番 E2E では、オーナー本人の実データ（`user_id: 'default'`）と完全に分離された `user_id: 'e2e-test'` を全 API リクエストに注入。
+- **自動クリーンアップ**:
+  - `beforeAll`（過去の残存データ一括削除）およびテストケース末尾の `DELETE /api/stocks/:id` により、テスト完了時の D1 データベースには一切のゴミデータを残さない。
+
+### 6.5 Dependabot 自動更新管理
+
+- `.github/dependabot.yml` を配置し、`npm` および `github-actions` の依存パッケージを週次でチェック。
+- **グループ化運用**: `minor` および `patch` の更新は `dependencies-minor-patch` / `actions-minor-patch` として単一 PR に集約し、通知と PR の氾濫を防止。
