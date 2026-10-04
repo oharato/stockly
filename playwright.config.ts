@@ -29,7 +29,7 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   workers: 1,
-  reporter: [["list"]],
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     trace: "on-first-retry",
     screenshot: "only-on-failure",

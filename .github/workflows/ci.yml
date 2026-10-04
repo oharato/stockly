@@ -69,6 +69,10 @@ jobs:
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: pnpm run deploy
 
+      - name: Await Edge Propagation
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CF_ACCESS_CLIENT_ID != ''
+        run: sleep 10
+
       - name: Skip Deploy Notice
         if: env.CLOUDFLARE_API_TOKEN == ''
         run: echo "⚠️ CLOUDFLARE_API_TOKEN is not configured in repository secrets. Skipping automated deployment."
@@ -87,3 +91,11 @@ jobs:
       - name: Post-Deploy Smoke E2E Test
         if: env.CF_ACCESS_CLIENT_ID != ''
         run: pnpm test:e2e:prod
+
+      - name: Upload Smoke Test Report Artifact
+        if: failure() && env.CF_ACCESS_CLIENT_ID != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: post-deploy-smoke-report
+          path: test-results/
+          retention-days: 7

@@ -43,7 +43,38 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     await cleanupTestUserStocks(request);
   });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ context, page, request }) => {
+    // Cloudflare Access の認証 Cookie (CF_Authorization) を事前取得してブラウザコンテキストに注入
+    if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
+      try {
+        const res = await request.get("https://stockly.ohchans.com/", {
+          headers: {
+            "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
+            "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
+          },
+        });
+        const setCookie = res.headers()["set-cookie"];
+        if (setCookie) {
+          const match = setCookie.match(/CF_Authorization=([^;]+)/);
+          if (match) {
+            await context.addCookies([
+              {
+                name: "CF_Authorization",
+                value: match[1],
+                domain: "stockly.ohchans.com",
+                path: "/",
+                secure: true,
+                httpOnly: true,
+                sameSite: "None",
+              },
+            ]);
+          }
+        }
+      } catch (e) {
+        console.warn("[Prod E2E] Failed to pre-fetch CF_Authorization cookie:", e);
+      }
+    }
+
     page.on("pageerror", (err) => {
       console.error("[Prod Page Error]", err.message);
     });
