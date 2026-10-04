@@ -106,6 +106,14 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     page.on("pageerror", (err) => {
       console.error("[Prod Page Error]", err.message);
     });
+    page.on("response", async (res) => {
+      if (res.status() >= 400 && res.url().includes("/api/")) {
+        console.error(`[Prod API Error] ${res.status()} ${res.url()}`);
+        try {
+          console.error(`[Prod API Error Body] ${(await res.text()).slice(0, 200)}`);
+        } catch {}
+      }
+    });
     // 確認ダイアログを自動承認
     page.on("dialog", (dialog) => {
       void dialog.accept();
