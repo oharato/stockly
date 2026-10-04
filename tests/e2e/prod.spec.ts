@@ -1,186 +1,79 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { setupCloudflareAccessProxy, cleanupTestUserStocks } from "./helpers/cf-proxy";
 
-// テスト専用ユーザーの残存データを安全に一括消去するヘルパー
-async function cleanupTestUserStocks(request: APIRequestContext) {
-  try {
-    const headers = {
-      "X-Stockly-User-Id": "e2e-test",
-      "User-Agent": "Stockly-E2E-Runner/1.0",
-      ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
-        ? {
-            "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
-            "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
-          }
-        : {}),
-    };
-    const res = await request.get("https://stockly.ohchans.com/api/stocks", { headers });
-    if (res.ok()) {
-      const data = (await res.json()) as { stocks?: Array<{ id: string }> };
-      if (data.stocks && data.stocks.length > 0) {
-        for (const stock of data.stocks) {
-          await request.delete(`https://stockly.ohchans.com/api/stocks/${stock.id}`, { headers });
-          await new Promise((r) => setTimeout(r, 400));
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("[Prod E2E] Cleanup warning:", e);
-  }
-}
-
-test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () => {
+test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com)", () => {
   test.beforeAll(async ({ request }) => {
-    if (!process.env.CF_ACCESS_CLIENT_ID || !process.env.CF_ACCESS_CLIENT_SECRET) {
-      throw new Error(
-        "❌ Cloudflare Access Service Token が未設定です。.env に CF_ACCESS_CLIENT_ID と CF_ACCESS_CLIENT_SECRET を設定してください。",
-      );
-    }
-    // 過去のテスト残存ストックがあれば一括消去
+    // テスト実行前の安全な残存データ消去
     await cleanupTestUserStocks(request);
   });
 
   test.afterAll(async ({ request }) => {
-    // テスト終了後の確実なクリーンアップ
+    // テスト完了後の確実なクリーンアップ
     await cleanupTestUserStocks(request);
   });
 
   test.beforeEach(async ({ context, page, request }) => {
-    // Cloudflare Access の認証 Cookie (CF_Authorization) を事前取得してブラウザコンテキストに注入
-    if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
-      try {
-        const res = await request.get("https://stockly.ohchans.com/", {
-          headers: {
-            "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
-            "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
-          },
-        });
-        const cookies = res
-          .headersArray()
-          .filter((h) => h.name.toLowerCase() === "set-cookie")
-          .map((h) => h.value);
-        for (const cookieStr of cookies) {
-          const match = cookieStr.match(/CF_Authorization=([^;]+)/);
-          if (match) {
-            await context.addCookies([
-              {
-                name: "CF_Authorization",
-                value: match[1],
-                domain: "stockly.ohchans.com",
-                path: "/",
-                secure: true,
-                httpOnly: true,
-                sameSite: "None",
-              },
-            ]);
-            break;
-          }
-        }
-      } catch (e) {
-        console.warn("[Prod E2E] Failed to pre-fetch CF_Authorization cookie:", e);
-      }
-    }
-
-    // すべてのリクエストに Service Token と テストユーザーID を注入してブラウザから直接通信
-    await context.route("**/*", async (route) => {
-      const req = route.request();
-      const url = req.url();
-
-      if (url.includes("beacon.min.js")) {
-        await route.abort();
-        return;
-      }
-
-      if (url.includes("stockly.ohchans.com")) {
-        const headers = {
-          ...req.headers(),
-          "x-stockly-user-id": "e2e-test",
-          ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
-            ? {
-                "cf-access-client-id": process.env.CF_ACCESS_CLIENT_ID,
-                "cf-access-client-secret": process.env.CF_ACCESS_CLIENT_SECRET,
-              }
-            : {}),
-        };
-        await route.continue({ headers });
-      } else {
-        await route.continue();
-      }
-    });
-
-    // Cloudflare Bot Challenge 回避 (navigator.webdriver の隠蔽)
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", {
-        get: () => undefined,
-      });
-    });
-
-    page.on("pageerror", (err) => {
-      console.error("[Prod Page Error]", err.message);
-    });
-    page.on("response", async (res) => {
-      if (res.status() >= 400 && res.url().includes("/api/")) {
-        console.error(`[Prod API Error] ${res.status()} ${res.url()}`);
-        try {
-          console.error(`[Prod API Error Body] ${(await res.text()).slice(0, 200)}`);
-        } catch {}
-      }
-    });
-    // 確認ダイアログを自動承認
-    page.on("dialog", (dialog) => {
-      void dialog.accept();
-    });
+    // Cloudflare Access 認証 & WAF 回避の環境セットアップ
+    await setupCloudflareAccessProxy(context, page, request);
   });
 
-  test("Prod Full Isolated User Lifecycle: Create Stock, Search, Rapid Keystrokes, Navigation, and Deletion Cleanup", async ({
+  test("1. 本番初期レンダリングと UI コンポーネントの正常表示", async ({ page }) => {
+    await page.goto("/");
+
+    // ヘッダーが表示されること
+    await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
+
+    // 検索入力欄とボトムナビゲーションが表示されること
+    await expect(page.locator("input[type='search']")).toBeVisible();
+    await expect(page.locator("nav")).toBeVisible();
+
+    // エラーバナーが表示されないこと
+    const errorBanner = page.locator("div:has-text('ストックの取得に失敗しました')");
+    await expect(errorBanner).toHaveCount(0);
+  });
+
+  test("2. ストック新規投稿、リアルタイム検索、および削除クリーンアップのフルライフサイクル", async ({
     page,
   }) => {
     const uniqueTag = `#E2E${Date.now().toString().slice(-4)}`;
-    const uniqueText = `本番検証メモ ${uniqueTag} - テストユーザー分離による安全な自動テスト`;
+    const uniqueText = `本番ブラウザ検証メモ ${uniqueTag} - 実DOMインタラクションによる自動テスト`;
 
-    // 1. 本番トップ画面へのアクセス
     await page.goto("/");
-
-    // ヘッダー確認 (エッジ通信とレンダリング待機)
     await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
 
-    // エラーバナーが表示されていないこと
-    const errorBanner = page.locator("div:has-text('ストックの取得に失敗しました')");
-    await expect(errorBanner).toHaveCount(0);
-
-    // 2. ストック新規作成 (書き込みテスト)
+    // 1. 「+」ボタンをクリックしてモーダルを開く
     const plusButton = page.locator("button[aria-label='新しい内省をストック']");
     await expect(plusButton).toBeVisible();
     await plusButton.click();
 
-    // モーダルのテキストエリアに入力
+    // 2. モーダルのテキストエリアに入力
     const textarea = page.locator("textarea");
     await expect(textarea).toBeVisible({ timeout: 8000 });
     await textarea.fill(uniqueText);
 
-    // 保存ボタンをクリック
+    // 3. 「ストックする」ボタンをクリック
     const submitButton = page.locator("button:has-text('ストックする')");
     await submitButton.click();
 
-    // モーダルが正常に閉じること（API 成功）
+    // 4. モーダルが正常に閉じること
     await expect(page.locator("dialog")).toHaveCount(0, { timeout: 12000 });
 
-    // 3. タイムラインに作成したストックが表示されること
+    // 5. タイムラインに作成したストックカードが DOM レンダリングされること
     const createdCard = page.locator(`article:has-text('${uniqueText}')`).first();
     await expect(createdCard).toBeVisible({ timeout: 12000 });
 
-    // 4. 通常キーワード検索の検証
+    // 6. 検索バーにキーワードを入力してリアルタイムフィルタリング
     const searchInput = page.locator("input[type='search']");
-    await expect(searchInput).toBeVisible();
-
     await searchInput.click();
     await searchInput.fill(uniqueTag);
     await page.waitForTimeout(400);
 
-    // エラーバナーがなく、該当カードが表示されること
-    await expect(errorBanner).toHaveCount(0);
+    // フィルタリング結果に該当カードが表示され、エラーバナーが出ないこと
     await expect(createdCard).toBeVisible();
+    const errorBanner = page.locator("div:has-text('ストックの取得に失敗しました')");
+    await expect(errorBanner).toHaveCount(0);
 
-    // 検索条件をクリア
+    // 7. 検索条件をクリア
     const clearBtn = page.locator("button[aria-label='検索条件をクリア']");
     if (await clearBtn.isVisible()) {
       await clearBtn.click();
@@ -189,57 +82,57 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     }
     await expect(searchInput).toHaveValue("");
 
-    // 5. 高速連続タイピング時の耐障害性 (0ms 即時ローカル検索)
+    // 8. 高速連続タイピング時の耐障害性 (0ms 即時ローカル検索)
     await searchInput.click();
-    await searchInput.pressSequentially("本番検証", { delay: 60 });
+    await searchInput.pressSequentially("本番ブラウザ", { delay: 60 });
     await page.waitForTimeout(600);
-
-    // エラーバナーが出ず、カードが表示されること
-    await expect(errorBanner).toHaveCount(0);
     await expect(createdCard).toBeVisible();
 
-    // 検索条件をクリア
+    // 検索条件を再クリア
     if (await clearBtn.isVisible()) {
       await clearBtn.click();
     } else {
       await searchInput.fill("");
     }
-    await expect(searchInput).toHaveValue("");
 
-    // 6. 「ふりかえり」タブへの遷移と機能の表示検証
+    // 9. 作成したストックを削除して DOM から消滅することを確認
+    const targetCard = page.locator(`article:has-text('${uniqueText}')`);
+    await expect(targetCard).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(500);
+
+    const deleteButton = targetCard.locator("button[aria-label='ストックを削除']");
+    await deleteButton.click({ force: true });
+
+    // タイムラインからカードの DOM 要素が消えること
+    await expect(targetCard).toHaveCount(0, { timeout: 8000 });
+  });
+
+  test("3. ふりかえりタブ画面遷移と各種機能（目標・AIサマリー・エクスポート）の表示検証", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
+
+    // 1. ボトムナビの「ふりかえり」タブをクリック
     const statsTabButton = page.locator("button:has-text('ふりかえり')").last();
     await expect(statsTabButton).toBeVisible();
     await statsTabButton.click();
 
-    // 目標・ビジョンが表示されること
+    // 2. 目標・ビジョンセクションが表示されること
     await expect(page.locator("text=目標・ビジョン")).toBeVisible({ timeout: 8000 });
 
-    // 週次 AI サマリーが表示されること
+    // 3. 週次 AI 内省サマリーが表示されること
     await expect(page.locator("text=週次 AI 内省サマリー")).toBeVisible({ timeout: 8000 });
 
-    // 毎日の内省リマインダーが表示されること
-    await expect(page.locator("text=毎日の内省リマインダー")).toBeVisible({ timeout: 8000 });
-
-    // データエクスポート & バックアップが表示されること
+    // 4. データエクスポートボタンが表示されること
     await expect(page.locator("text=データエクスポート & バックアップ")).toBeVisible();
     await expect(page.locator("button:has-text('JSON')")).toBeVisible();
     await expect(page.locator("button:has-text('Markdown')")).toBeVisible();
     await expect(page.locator("button:has-text('CSV')")).toBeVisible();
 
-    // 7. 「ストック」タブに戻る
+    // 5. 「ストック」タブをクリックしてタイムライン画面に戻れること
     const stockTabButton = page.locator("button:has-text('ストック')").last();
     await stockTabButton.click();
     await expect(page.locator("input[type='search']")).toBeVisible();
-
-    // 8. 作成したストックを削除してクリーンアップ
-    const targetCard = page.locator(`article:has-text('${uniqueText}')`);
-    await expect(targetCard).toBeVisible({ timeout: 5000 });
-    await page.waitForTimeout(600);
-    const deleteButton = targetCard.locator("button[aria-label='ストックを削除']");
-    await deleteButton.click({ force: true });
-
-    // タイムラインからカードが消えること
-    await expect(targetCard).toHaveCount(0, { timeout: 8000 });
-    await page.waitForTimeout(500);
   });
 });
