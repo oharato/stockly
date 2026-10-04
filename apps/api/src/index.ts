@@ -29,8 +29,44 @@ app.use(
 
 // ヘルスチェックとストックルートの結合
 const routes = app
-  .get("/api/health", (c) => {
-    return c.json({ status: "ok", time: new Date().toISOString() });
+  .get("/api/health", async (c) => {
+    try {
+      if (!c.env?.DB) {
+        return c.json({
+          status: "ok",
+          db: "skipped",
+          message: "No DB binding in context",
+          time: new Date().toISOString(),
+        });
+      }
+
+      // D1 データベース接続 & stocks テーブル読み込み検証
+      const stockCheck = await c.env.DB.prepare("SELECT COUNT(*) as count FROM stocks").first<{
+        count: number;
+      }>();
+
+      const isHealthy = typeof stockCheck?.count === "number";
+      return c.json(
+        {
+          status: isHealthy ? "ok" : "error",
+          db: isHealthy ? "connected" : "unhealthy",
+          stocks_count: stockCheck?.count ?? 0,
+          time: new Date().toISOString(),
+        },
+        isHealthy ? 200 : 500,
+      );
+    } catch (e) {
+      console.error("[Health Check Failed]", e);
+      return c.json(
+        {
+          status: "error",
+          db: "unhealthy",
+          error: e instanceof Error ? e.message : "Unknown DB error",
+          time: new Date().toISOString(),
+        },
+        500,
+      );
+    }
   })
   .get("/api/auth/login", (c) => {
     // Cloudflare Access 認証完了後にこのエンドポイントへ到達するため、トップ画面へリダイレクト

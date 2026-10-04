@@ -3,12 +3,25 @@ import app from "../src/index";
 import { createMockDB } from "./helpers/mock-db";
 
 describe("Stockly API Endpoints", () => {
-  it("GET /api/health should return ok", async () => {
+  it("GET /api/health should return ok without DB", async () => {
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
 
     const data = (await res.json()) as any;
     expect(data.status).toBe("ok");
+    expect(data.db).toBe("skipped");
+    expect(data.time).toBeDefined();
+  });
+
+  it("GET /api/health with DB should verify database connectivity and table readiness", async () => {
+    const mockDB = createMockDB();
+    const res = await app.request("/api/health", {}, { DB: mockDB });
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as any;
+    expect(data.status).toBe("ok");
+    expect(data.db).toBe("connected");
+    expect(typeof data.stocks_count).toBe("number");
     expect(data.time).toBeDefined();
   });
 
