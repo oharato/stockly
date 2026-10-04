@@ -72,42 +72,7 @@ jobs:
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-        run: |
-          echo "Verifying production health check endpoint with database read..."
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-          SUCCESS=0
-          
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "Attempt $RETRY_COUNT of $MAX_RETRIES..."
-            
-            RESPONSE=$(curl -s -w "\n%{http_code}" https://stockly.ohchans.com/api/health \
-              -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
-              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
-              -H "User-Agent: Stockly-CI-HealthCheck/1.0" \
-              -H "Accept: application/json")
-            
-            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-            BODY=$(echo "$RESPONSE" | sed '$d')
-            
-            echo "HTTP Status: $HTTP_CODE"
-            echo "Response: $BODY"
-            
-            if [ "$HTTP_CODE" -eq 200 ] && echo "$BODY" | grep -q '"status":"ok"' && echo "$BODY" | grep -q '"db":"connected"'; then
-              echo "✅ Production health check & DB read verification passed!"
-              SUCCESS=1
-              break
-            fi
-            
-            echo "Health check failed or DB not ready yet, retrying in 3 seconds..."
-            sleep 3
-          done
-          
-          if [ $SUCCESS -ne 1 ]; then
-            echo "❌ Production health check failed after $MAX_RETRIES attempts."
-            exit 1
-          fi
+        run: node scripts/verify-health.mjs
 
       - name: Skip Deploy Notice
         if: env.CLOUDFLARE_API_TOKEN == ''
