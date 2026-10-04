@@ -1,4 +1,20 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { execSync, spawnSync } from "node:child_process";
+
+// Auto-load .env
+const candidateEnvPaths = [
+  path.resolve(process.cwd(), ".env"),
+  path.resolve(process.cwd(), "../.env"),
+];
+for (const envPath of candidateEnvPaths) {
+  if (fs.existsSync(envPath)) {
+    try {
+      process.loadEnvFile(envPath);
+      break;
+    } catch {}
+  }
+}
 
 /**
  * 本番 E2E テスト自動実行ランナー

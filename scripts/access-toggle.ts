@@ -96,22 +96,27 @@ function showStatus() {
   }
 
   const details = getAppDetails(app.id);
-  const activePolicy = details.policies?.[0];
 
   console.log(`   ・アプリケーション名: ${details.name}`);
   console.log(`   ・ドメイン: ${details.domain}`);
   console.log(`   ・ID: ${details.id}`);
 
-  if (!activePolicy) {
-    console.log("⚠️  ポリシーが設定されていません。");
-  } else if (activePolicy.decision === "bypass") {
+  const policies = details.policies || [];
+  const hasAllow = policies.some((p: AccessPolicy) => p.decision === "allow");
+  const hasServiceToken = policies.some((p: AccessPolicy) => p.decision === "non_identity");
+  const isBypass = policies.some((p: AccessPolicy) => p.decision === "bypass");
+
+  if (isBypass) {
     console.log("🔓 【現在: OFF (Bypass)】 誰でも認証画面なしで直接アクセス可能です。");
-  } else if (activePolicy.decision === "allow") {
+  } else if (hasAllow) {
     console.log(
       `🔒 【現在: ON (Protected)】 ${OWNER_EMAIL || "管理者メールアドレス"} によるワンタイムPIN認証で保護されています。`,
     );
+    if (hasServiceToken) {
+      console.log("   🔑 Service Token による自動テスト認証 (non_identity) が有効です。");
+    }
   } else {
-    console.log(`ℹ️  【現在: ${activePolicy.decision}】 ポリシー名: ${activePolicy.name}`);
+    console.log(`ℹ️  【現在ポリシー数: ${policies.length}】`);
   }
   console.log("");
 }
@@ -127,23 +132,40 @@ function setAccess(enable: boolean) {
 
   const app = getStocklyApp();
 
-  const targetDecision: "allow" | "bypass" = enable ? "allow" : "bypass";
-  const policyName = enable ? "Owner PIN Access" : "Dev Bypass Access";
-  const includeRule = enable ? [{ email: { email: OWNER_EMAIL } }] : [{ everyone: {} }];
+  const policies: AccessPolicy[] = [];
+
+  if (enable) {
+    policies.push({
+      name: "Owner PIN Access",
+      decision: "allow",
+      include: [{ email: { email: OWNER_EMAIL } }],
+      precedence: 1,
+    });
+
+    const serviceTokenId = process.env.CF_ACCESS_SERVICE_TOKEN_ID;
+    if (serviceTokenId) {
+      policies.push({
+        name: "E2E Service Token Access",
+        decision: "non_identity",
+        include: [{ service_token: { token_id: serviceTokenId } }],
+        precedence: 2,
+      });
+    }
+  } else {
+    policies.push({
+      name: "Dev Bypass Access",
+      decision: "bypass",
+      include: [{ everyone: {} }],
+      precedence: 1,
+    });
+  }
 
   const payload = {
     name: APP_NAME,
     domain: APP_DOMAIN,
     type: "self_hosted",
     session_duration: "24h",
-    policies: [
-      {
-        name: policyName,
-        decision: targetDecision,
-        include: includeRule,
-        precedence: 1,
-      },
-    ],
+    policies,
   };
 
   if (!app) {
