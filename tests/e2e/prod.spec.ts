@@ -5,6 +5,7 @@ async function cleanupTestUserStocks(request: APIRequestContext) {
   try {
     const headers = {
       "X-Stockly-User-Id": "e2e-test",
+      "User-Agent": "Stockly-E2E-Runner/1.0",
       ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
         ? {
             "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
@@ -85,8 +86,15 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
       const req = route.request();
       const method = req.method();
       const postData = req.postData();
-      const headers = {
-        ...req.headers(),
+      const contentType = req.headers()["content-type"] || "application/json";
+
+      // Cloudflare Bot Challenge 回避:
+      // ブラウザ固有の sec-ch-ua や Headless 系ヘッダーを送信せず、
+      // 安定した API クライアントヘッダーとして Node.js からリクエスト
+      const headers: Record<string, string> = {
+        accept: "application/json, text/plain, */*",
+        "content-type": contentType,
+        "user-agent": "Stockly-E2E-Runner/1.0",
         "x-stockly-user-id": "e2e-test",
         ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
           ? {

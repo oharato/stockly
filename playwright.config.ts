@@ -33,9 +33,6 @@ export default defineConfig({
   use: {
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    launchOptions: {
-      args: ["--disable-blink-features=AutomationControlled"],
-    },
     ...devices["Pixel 7"],
   },
   projects: [
@@ -53,6 +50,11 @@ export default defineConfig({
       use: {
         baseURL: "https://stockly.ohchans.com",
         ...devices["Pixel 7"],
+        userAgent:
+          "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+        launchOptions: {
+          args: ["--disable-blink-features=AutomationControlled"],
+        },
         extraHTTPHeaders: {
           "X-Stockly-User-Id": "e2e-test",
           ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
