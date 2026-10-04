@@ -79,11 +79,33 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
       }
     }
 
+    // すべての同一ドメインリクエストに Service Token と テストユーザーID を確実に注入
+    await context.route("**/*", async (route) => {
+      const url = route.request().url();
+      if (url.includes("beacon.min.js")) {
+        await route.abort();
+        return;
+      }
+      if (url.includes("stockly.ohchans.com")) {
+        const headers = {
+          ...route.request().headers(),
+          "x-stockly-user-id": "e2e-test",
+          ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
+            ? {
+                "cf-access-client-id": process.env.CF_ACCESS_CLIENT_ID,
+                "cf-access-client-secret": process.env.CF_ACCESS_CLIENT_SECRET,
+              }
+            : {}),
+        };
+        await route.continue({ headers });
+      } else {
+        await route.continue();
+      }
+    });
+
     page.on("pageerror", (err) => {
       console.error("[Prod Page Error]", err.message);
     });
-    // Cloudflare Analytics beacon の CORS プリフライト失敗を防止
-    await page.route("**/beacon.min.js**", (route) => route.abort());
     // 確認ダイアログを自動承認
     page.on("dialog", (dialog) => {
       void dialog.accept();
