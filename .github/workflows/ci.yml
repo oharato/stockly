@@ -46,6 +46,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -68,10 +70,7 @@ jobs:
         run: pnpm run deploy
 
       - name: Verify Deployment Health & DB Read
-        if: env.CLOUDFLARE_API_TOKEN != ''
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CF_ACCESS_CLIENT_ID != ''
         run: node scripts/verify-health.mjs
 
       - name: Skip Deploy Notice
