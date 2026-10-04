@@ -153,13 +153,14 @@ describe("Stockly API Endpoints", () => {
         ),
     ]);
 
-    // 今日の再発見取得
+    // 今日の再発見取得 (最初は未読)
     const getRes = await app.request("/api/stocks/rediscovery", {}, { DB: mockDB });
     expect(getRes.status).toBe(200);
     const getData = (await getRes.json()) as any;
     expect(getData.rediscovery).toBeDefined();
     expect(getData.rediscovery.id).toBe("past-1");
     expect(getData.rediscovery.content).toContain("過去の学び");
+    expect(getData.is_read).toBe(false);
 
     // 振り返り読了アクション実行 (+20pt, +1 rediscovery_count)
     const readRes = await app.request(
@@ -172,6 +173,21 @@ describe("Stockly API Endpoints", () => {
     expect(readData.success).toBe(true);
     expect(readData.stats.rediscovery_count).toBe(1);
     expect(readData.stats.score).toBe(20);
+
+    // リロード時: 再度 GET すると is_read が true になっていること
+    const getResAfter = await app.request("/api/stocks/rediscovery", {}, { DB: mockDB });
+    const getDataAfter = (await getResAfter.json()) as any;
+    expect(getDataAfter.is_read).toBe(true);
+
+    // 再度押下されても重複加算されないこと（冪等性）
+    const readRes2 = await app.request(
+      "/api/stocks/rediscovery/read",
+      { method: "POST" },
+      { DB: mockDB },
+    );
+    const readData2 = (await readRes2.json()) as any;
+    expect(readData2.stats.rediscovery_count).toBe(1);
+    expect(readData2.stats.score).toBe(20);
   });
 
   it("POST /api/upload should validate and accept image files", async () => {

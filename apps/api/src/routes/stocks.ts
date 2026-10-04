@@ -179,13 +179,16 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   .get("/api/stocks/rediscovery", async (c) => {
     const todayJST = getJSTDateString();
     const rediscovery = await getDailyRediscoveryStock(c.env.DB, todayJST);
-    return c.json({ rediscovery });
+    const stats = await getUserStats(c.env.DB);
+    const is_read = stats.last_rediscovery_date === todayJST;
+    return c.json({ rediscovery, is_read });
   })
 
   // 再発見の読了記録 (+1件, +20pt)
   .post("/api/stocks/rediscovery/read", async (c) => {
-    const stats = await incrementRediscoveryCount(c.env.DB);
-    return c.json({ success: true, stats });
+    const todayJST = getJSTDateString();
+    const stats = await incrementRediscoveryCount(c.env.DB, todayJST);
+    return c.json({ success: true, stats, is_read: true });
   })
 
   // 使用中のタグ一覧取得

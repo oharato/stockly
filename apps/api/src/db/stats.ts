@@ -6,7 +6,7 @@ import type { UserStats } from "../schemas/stock";
 export async function getUserStats(db: D1Database): Promise<UserStats> {
   const stats = await db
     .prepare(
-      `SELECT score, total_stocks, rediscovery_count, current_streak, max_streak, last_stock_date
+      `SELECT score, total_stocks, rediscovery_count, current_streak, max_streak, last_stock_date, last_rediscovery_date
        FROM user_stats WHERE id = 'default'`,
     )
     .first<UserStats>();
@@ -19,6 +19,7 @@ export async function getUserStats(db: D1Database): Promise<UserStats> {
       current_streak: 0,
       max_streak: 0,
       last_stock_date: null,
+      last_rediscovery_date: null,
     }
   );
 }
@@ -46,15 +47,27 @@ export async function getStreakContext(db: D1Database): Promise<{
 
 /**
  * 再発見を記録し、カウントとスコアを加算 (+1件, +20pt)
+ * ※ 同日内の重複加算を防止し、冪等性を担保
  */
-export async function incrementRediscoveryCount(db: D1Database): Promise<UserStats> {
+export async function incrementRediscoveryCount(
+  db: D1Database,
+  todayJST: string,
+): Promise<UserStats> {
+  const current = await getUserStats(db);
+  if (current.last_rediscovery_date === todayJST) {
+    // すでに今日振り返り済みの場合は加算せず現状を返す
+    return current;
+  }
+
   await db
     .prepare(
       `UPDATE user_stats
        SET rediscovery_count = rediscovery_count + 1,
-           score = score + 20
+           score = score + 20,
+           last_rediscovery_date = ?
        WHERE id = 'default'`,
     )
+    .bind(todayJST)
     .run();
 
   return getUserStats(db);

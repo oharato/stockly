@@ -64,6 +64,7 @@ export const userStatsSchema = z.object({
   current_streak: z.number(),
   max_streak: z.number(),
   last_stock_date: z.string().nullable(),
+  last_rediscovery_date: z.string().nullable().optional(),
 });
 
 export type UserStats = z.infer<typeof userStatsSchema>;

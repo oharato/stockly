@@ -230,6 +230,7 @@ class StockStore {
       if (!res.ok) return;
       const data = await res.json();
       this.rediscovery = (data.rediscovery as StockItem) ?? null;
+      this.isRediscoveryRead = (data as { is_read?: boolean }).is_read ?? false;
     } catch {
       // サイレントに処理
     }

@@ -14,6 +14,7 @@ export function createMockDB() {
     current_streak: 0,
     max_streak: 0,
     last_stock_date: null,
+    last_rediscovery_date: null as string | null,
   };
 
   function getStocksWithDetails(list: any[]) {
@@ -119,6 +120,9 @@ export function createMockDB() {
               if (query.includes("rediscovery_count = rediscovery_count + 1")) {
                 userStats.rediscovery_count += 1;
                 userStats.score += 20;
+                if (args && args.length > 0) {
+                  userStats.last_rediscovery_date = String(args[0]);
+                }
                 return { success: true };
               }
               return { success: true };

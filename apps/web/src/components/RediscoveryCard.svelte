@@ -12,12 +12,13 @@
   let { stock, onRead, isRead = false }: Props = $props();
 
   let isReading = $state(false);
-  let localRead = $state(isRead);
+  let localRead = $state(false);
 
+  let isDone = $derived(isRead || localRead);
   let formattedDate = $derived(formatGroupTitle(getDateKey(stock.created_at)));
 
   async function handleRead() {
-    if (localRead || isReading) return;
+    if (isDone || isReading) return;
     isReading = true;
     try {
       await onRead();
@@ -45,7 +46,7 @@
     </div>
 
     <!-- 読了アクションボタン -->
-    {#if localRead}
+    {#if isDone}
       <div class="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
         <Check class="w-3 h-3 stroke-2" />
         <span>振り返り済み</span>
