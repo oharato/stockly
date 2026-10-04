@@ -21,16 +21,24 @@ describe("AI Comment Service (Integration Tests)", () => {
     expect(typeof comment).toBe("string");
     expect(comment.length).toBeGreaterThan(10);
 
-    // DB からストック一覧を取得し、ai_comment が紐付いていることを確認
-    const { results } = await mockDB.prepare("SELECT * FROM stocks").all();
-    const createdStock = results.find((s: any) => s.id === stockId);
-    expect(createdStock?.ai_comment).toBe(comment);
+    // DB からストックと AI コメントの紐付けを確認
+    const commentRow = await mockDB
+      .prepare("SELECT comment FROM ai_comments WHERE stock_id = ?")
+      .bind(stockId)
+      .first<{ comment: string }>();
+    expect(commentRow?.comment).toBe(comment);
   });
 
   it("should use Workers AI when binding is present", async () => {
     const mockDB = createMockDB();
     const stockId = "stock-ai-test-2";
     const content = "失敗を恐れずに行動することが大切だと気づいた。";
+
+    // 外部キー制約を満たすため親ストックを作成
+    await mockDB
+      .prepare("INSERT INTO stocks (id, content, created_at, updated_at) VALUES (?, ?, ?, ?)")
+      .bind(stockId, content, "2026-10-03", "2026-10-03")
+      .run();
 
     // Workers AI のモック
     const mockAI = {
@@ -46,5 +54,11 @@ describe("AI Comment Service (Integration Tests)", () => {
     const comment = await generateAndSaveAIComment({ DB: mockDB, AI: mockAI }, stockId, content);
 
     expect(comment).toBe("その挑戦の姿勢が素晴らしいですね！具体的にどんな一歩を踏み出しますか？");
+
+    const saved = await mockDB
+      .prepare("SELECT comment FROM ai_comments WHERE stock_id = ?")
+      .bind(stockId)
+      .first<{ comment: string }>();
+    expect(saved?.comment).toBe(comment);
   });
 });
