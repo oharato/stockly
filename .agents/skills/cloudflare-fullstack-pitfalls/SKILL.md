@@ -224,7 +224,62 @@ jobs:
 
 ---
 
-## 6. まとめ: チェックリスト (Day 1 導入原則)
+## 6. ライブラリ選定 & バージョン互換性の落とし穴
+
+フルスタック Cloudflare 開発において、開発速度・バンドルサイズ・CI 速度を最大化し、依存関係の衝突を防ぐためのライブラリ選定と互換性知見です。
+
+### 🚨 落とし穴1: `@cloudflare/vitest-plugin` / `miniflare` と最新ツールのバージョン衝突
+
+- **事象**:
+  - Cloudflare 公式の最新推奨テストツール `@cloudflare/vitest-plugin` を Vite+ (`vite-plus` / `vp test`) 環境に導入すると、Vite+ が内蔵する `vitest@5.x` に対しプラグインが `vitest@^4.1.0` を前提としているため、ワーカープール起動時に内部 API 互換性エラー（`Unexpected identifier 'file'`）が発生する。
+  - `miniflare` スタンドアローン版を Node.js 24 で動かすと、スレッド間同期通信（`Atomics.wait`）がデッドロックする。
+- **🛡️ 解決策**:
+  - **Node.js LTS (v24.13.0+) 組み込み `node:sqlite`（`DatabaseSync`）を採用**:
+    - 外部ライブラリ依存ゼロで、起動オーバーヘッド 0ms。
+    - 公式プラグインが Vitest 5 追従を完了するまでの間、最も堅牢で高速なテスト環境を提供。
+
+### 🚨 落とし穴2: 個別ツールの乱立による設定・依存の断片化
+
+- **事象**: ESLint, Prettier, 独立した Vitest, Turborepo, tsdown などを個別に導入すると、設定ファイルの増大、依存パッケージの競合、CI でのセットアップ時間増大を招く。
+- **🛡️ 解決策**:
+  - **統合ツールチェーン Vite+ (`vp`) の徹底活用**:
+    - 単一のツールチェーンで Rust 製高速ツール群（Rolldown, Vitest, Oxlint, Oxfmt, tsdown）を包括。
+    - `vp check`（型検査 + Oxlint + Oxfmt）、`vp test --run`、`vp build` を 1 つで高速完結させ、メンテナンスコストを劇的に削減。
+
+### 🚨 落とし穴3: `wrangler` の分散と Zero Trust / Access 操作の分断
+
+- **事象**: 従来の `wrangler` CLI では Workers, D1, R2 の基本操作しかできず、Zero Trust Access の Service Token 発行やポリシー制御はダッシュボードの手動操作や curl に頼る必要があった。
+- **🛡️ 解決策**:
+  - **Cloudflare 次世代統合 CLI `cf` (`cf@1.0.0-beta.12`) の全面採用**:
+    - `cf dev`, `cf deploy`, `cf d1`, `cf zero-trust access service-tokens` など、インフラ・WAF・認証・アプリ操作を一元化。
+
+### 🚨 落とし穴4: バックエンド・フロントエンド間の型共有でのランタイム汚染
+
+- **事象**: モノレポで型を共有する際、バックエンドのモジュールを直接インポートすると、Node.js / Cloudflare 固有のランタイムコードや重い依存がフロントエンドのクライアントバンドルに混入・肥大化する。
+- **🛡️ 解決策**:
+  - **Hono RPC (`hono/client`) + Zod による Type-Only Import**:
+    - バックエンド側で Zod スキーマから推論した `AppType` をエクスポート。
+    - フロントエンド側は `import type { AppType } from '...'` で **型情報のみ** を参照し、`hc<AppType>('/')` でクライアントを生成。
+    - クライアントバンドルへのオーバーヘッド **0 バイト** で、完全な E2E 型補完とバリデーションを実現。
+
+### 🛡️ 推奨ライブラリスタック一覧
+
+| 領域                        | 推奨ライブラリ / ツール             | 選定理由 & メリット                                                           |
+| :-------------------------- | :---------------------------------- | :---------------------------------------------------------------------------- |
+| **統合ツールチェーン**      | **Vite+ (`vite-plus` / `vp`)**      | Rolldown + Oxlint + Oxfmt + Vitest が統合された超高速 Rust 製スタック         |
+| **Cloudflare CLI**          | **`cf` (`cf@1.0.0-beta.12`)**       | Workers, D1, R2, Zero Trust Access を一元操作する公式次世代 CLI               |
+| **バックエンド API**        | **Hono + Cloudflare Workers**       | エッジ最適化された超軽量 Web フレームワーク + RPC 型安全性                    |
+| **バリデーション / 型共有** | **Zod + `hono/client` (RPC)**       | Type-only import によりクライアントバンドルを汚染しない完全型安全通信         |
+| **フロントエンド**          | **Svelte 5 (Runes) + Tailwind CSS** | `$state` / `$derived` による最小ランタイム。バンドルサイズ 70KB 台の超軽量 UI |
+| **UI アイコン**             | **`lucide-svelte`**                 | 完全 Tree-shaking 対応で必要なアイコンのみバンドル                            |
+| **PWA**                     | **`vite-plugin-pwa`**               | Workbox によるオフラインキャッシュと PWA マニフェスト生成                     |
+| **インフラコード化 (IaC)**  | **Pulumi (`@pulumi/cloudflare`)**   | TypeScript で D1, R2, KV, DNS, Access をコード管理（HCL 不要）                |
+| **D1 単体テスト**           | **`node:sqlite` (Node.js LTS)**     | 外部依存ゼロ、1秒で全件パスする本物 SQLite インメモリテスト                   |
+| **E2E 自動テスト**          | **Playwright (`@playwright/test`)** | BoringSSL スタックにより Cloudflare WAF Bot Challenge を透過可能な唯一解      |
+
+---
+
+## 7. まとめ: チェックリスト (Day 1 導入原則)
 
 - [ ] **Svelte / React**: `$effect` / `useEffect` 内で API 通信を行っていないか？
 - [ ] **検索 UI**: マスターキャッシュによる「0ms 即時ローカルフィルタ」または「300ms デバウンス」になっているか？
@@ -232,6 +287,9 @@ jobs:
 - [ ] **E2E**: データセンター IP からの WAF 遮断に備え、BoringSSL 経由の透過プロキシ（`cf-proxy.ts`）を用意したか？
 - [ ] **E2E データ分離**: テストリクエストに `user_id: 'e2e-test'` を注入し、本番実データを保護しているか？
 - [ ] **D1 テスト**: 手書き文字列モックではなく、Node.js LTS 組み込み `node:sqlite` でマイグレーションを実行しているか？
+- [ ] **型共有**: バックエンドから型情報のみ（`import type { AppType }`）を参照し、フロントバンドルを汚染していないか？
+- [ ] **CLI 統合**: 従来の `wrangler` 乱立ではなく、`cf` CLI で Workers / Access / D1 を一元管理しているか？
 - [ ] **GitHub Actions**: `if:` 式で `secrets` を直参照せず、ジョブレベル `env:` 経由で評価しているか？
 - [ ] **CI キャッシュ**: Playwright の `install-deps` もキャッシュヒット判定でスキップしているか？
 - [ ] **CD ヘルスチェック**: デプロイ直後に D1 の Read を伴うヘルスチェック（~300ms）を組み込んでいるか？
+- [ ] **サプライチェーン**: レジストリ `https://npm.flatt.tech` を指定し、7日間クールダウンを満たす安定版にバージョン固定しているか？
