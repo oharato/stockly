@@ -103,6 +103,13 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
       }
     });
 
+    // Cloudflare Bot Challenge 回避 (navigator.webdriver の隠蔽)
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => undefined,
+      });
+    });
+
     page.on("pageerror", (err) => {
       console.error("[Prod Page Error]", err.message);
     });

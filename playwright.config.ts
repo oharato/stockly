@@ -33,6 +33,9 @@ export default defineConfig({
   use: {
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    launchOptions: {
+      args: ["--disable-blink-features=AutomationControlled"],
+    },
     ...devices["Pixel 7"],
   },
   projects: [
