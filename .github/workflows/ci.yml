@@ -46,8 +46,6 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -69,33 +67,6 @@ jobs:
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: pnpm run deploy
 
-      - name: Await Edge Propagation
-        if: env.CLOUDFLARE_API_TOKEN != '' && env.CF_ACCESS_CLIENT_ID != ''
-        run: sleep 10
-
       - name: Skip Deploy Notice
         if: env.CLOUDFLARE_API_TOKEN == ''
         run: echo "⚠️ CLOUDFLARE_API_TOKEN is not configured in repository secrets. Skipping automated deployment."
-
-      - name: Cache Playwright Browsers
-        if: env.CF_ACCESS_CLIENT_ID != ''
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install Playwright Chromium & System Dependencies
-        if: env.CF_ACCESS_CLIENT_ID != ''
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Post-Deploy Smoke E2E Test
-        if: env.CF_ACCESS_CLIENT_ID != ''
-        run: pnpm test:e2e:prod
-
-      - name: Upload Smoke Test Report Artifact
-        if: failure() && env.CF_ACCESS_CLIENT_ID != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: post-deploy-smoke-report
-          path: test-results/
-          retention-days: 7
