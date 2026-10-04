@@ -337,8 +337,15 @@ class StockStore {
         json: { content, imageKeys, tagNames },
       });
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error((errorData as { message?: string }).message || "作成に失敗しました");
+        let msg = "作成に失敗しました";
+        try {
+          const errorData = (await res.json()) as { message?: string; error?: string };
+          if (errorData?.message) msg = errorData.message;
+          else if (errorData?.error) msg = errorData.error;
+        } catch {
+          msg = `作成エラー (HTTP ${res.status})`;
+        }
+        throw new Error(msg);
       }
       const newStock = (await res.json()) as StockItem;
       // マスターキャッシュおよび表示用リストを即時更新

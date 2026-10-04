@@ -53,9 +53,12 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
             "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
           },
         });
-        const setCookie = res.headers()["set-cookie"];
-        if (setCookie) {
-          const match = setCookie.match(/CF_Authorization=([^;]+)/);
+        const cookies = res
+          .headersArray()
+          .filter((h) => h.name.toLowerCase() === "set-cookie")
+          .map((h) => h.value);
+        for (const cookieStr of cookies) {
+          const match = cookieStr.match(/CF_Authorization=([^;]+)/);
           if (match) {
             await context.addCookies([
               {
@@ -68,6 +71,7 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
                 sameSite: "None",
               },
             ]);
+            break;
           }
         }
       } catch (e) {
@@ -115,6 +119,9 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
     // 保存ボタンをクリック
     const submitButton = page.locator("button:has-text('ストックする')");
     await submitButton.click();
+
+    // モーダルが正常に閉じること（API 成功）
+    await expect(page.locator("dialog")).toHaveCount(0, { timeout: 12000 });
 
     // 3. タイムラインに作成したストックが表示されること
     const createdCard = page.locator(`article:has-text('${uniqueText}')`).first();

@@ -17,7 +17,13 @@ app.use(
   cors({
     origin: ["http://localhost:5173", "http://127.0.0.1:5173", "https://stockly.ohchans.com"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Stockly-User-Id",
+      "CF-Access-Client-Id",
+      "CF-Access-Client-Secret",
+    ],
   }),
 );
 
@@ -31,6 +37,11 @@ const routes = app
     return c.redirect("/");
   })
   .route("/", stockRoutes);
+
+// API ルート未マッチ時の JSON 404 フォールバック（SPA HTML の誤返却を防止）
+app.all("/api/*", (c) => {
+  return c.json({ error: "Endpoint not found" }, 404);
+});
 
 // 静的アセット（SPA PWA）フォールバック
 app.all("*", (c) => {
