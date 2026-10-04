@@ -34,34 +34,47 @@ stockly/
 │   │   ├── package.json
 │   │   ├── src/
 │   │   │   ├── components/     # Svelte コンポーネント (.svelte)
-│   │   │   │   ├── BottomNav.svelte
-│   │   │   │   ├── StockCard.svelte
-│   │   │   │   ├── StockInputModal.svelte
-│   │   │   │   ├── RediscoveryCard.svelte
-│   │   │   │   └── StatsBar.svelte
+│   │   │   │   ├── BottomNav.svelte         # タブナビゲーション (ストック / ふりかえり)
+│   │   │   │   ├── Header.svelte            # ブランドロゴ、ストリーク、キャッシュ更新
+│   │   │   │   ├── StockCard.svelte         # ストック表示カード (AI問いかけアコーディオン)
+│   │   │   │   ├── StockInputModal.svelte   # ストック入力・テンプレート・画像添付モーダル
+│   │   │   │   ├── RediscoveryCard.svelte   # 今日の再発見 (1日1件固定・読了アクション)
+│   │   │   │   ├── SearchBar.svelte         # 0ms 即時ローカル検索バー
+│   │   │   │   ├── TagFilterBar.svelte      # 水平スクロールタグフィルター
+│   │   │   │   ├── Timeline.svelte          # 日付別ストックタイムライン
+│   │   │   │   └── StatsReport.svelte       # ふりかえりダッシュボード (目標, 週次AI, 通知, エクスポート)
 │   │   │   ├── state/          # グローバル状態管理 (Svelte 5 Runes: .svelte.ts)
-│   │   │   │   ├── stockStore.svelte.ts
-│   │   │   │   └── statsStore.svelte.ts
-│   │   │   ├── lib/            # hono/client 型安全RPCクライアント
-│   │   │   │   └── api.ts
+│   │   │   │   ├── stocks.svelte.ts         # ストック CRUD & キャッシュ
+│   │   │   │   └── stats.svelte.ts          # ゲーミフィケーション統計
+│   │   │   ├── lib/            # hono/client 型安全RPCクライアント & 通知
+│   │   │   │   ├── api.ts
+│   │   │   │   └── notifications.ts
 │   │   │   ├── App.svelte      # メインレイアウト & 画面ルーティング
 │   │   │   └── main.ts         # エントリポイント
-│   │   └── public/             # PWA マニフェスト, アイコン
+│   │   └── public/             # PWA マニフェスト, アイコン, Favicon
 │   └── api/                    # バックエンド API (Cloudflare Workers + Hono)
-│       ├── wrangler.jsonc      # D1, Workers AI, R2 バインディング定義
+│       ├── wrangler.jsonc      # D1, Workers AI, R2, ASSETS バインディング定義
 │       ├── package.json
 │       ├── src/
 │       │   ├── index.ts        # Hono アプリケーション
-│       │   ├── routes/         # stocks, rediscovery, stats, ai
-│       │   ├── services/       # AIコメント非同期生成 (ctx.waitUntil)
-│       │   └── db/             # D1 クエリ
-│       └── migrations/         # D1 マイグレーション SQL
+│       │   ├── routes/         # stocks (CRUD, tags, goals, rediscovery, export, summary)
+│       │   ├── services/       # ai.ts (Workers AI Llama 3.3 70B), summary-ai.ts
+│       │   ├── db/             # stocks.ts, stats.ts, goals.ts, ai-comments.ts, summary.ts
+│       │   └── utils/          # streak.ts (JSTストリーク判定)
+│       └── migrations/         # D1 マイグレーション SQL (0001〜0004)
 ├── infra/                      # Pulumi IaC
 │   ├── Pulumi.yaml
 │   ├── Pulumi.prod.yaml
-│   ├── index.ts                # D1, R2, Workers, KV プロビジョニング
+│   ├── index.ts                # D1, R2 プロビジョニング
 │   └── package.json
-└── docs/                       # ドキュメント
+├── scripts/                    # 運用・検証スクリプト
+│   ├── access-toggle.ts        # Cloudflare Access ON/OFF/STATUS 切替
+│   └── import-csv.ts           # 過去データ一括インポートスクリプト
+├── tests/                      # Playwright E2E テスト
+│   └── e2e/
+│       ├── local.spec.ts       # ローカル環境 CRUD フルサイクル自動テスト
+│       └── prod.spec.ts        # 本番環境 Read-Only 表示・検索・耐久性自動テスト
+└── docs/                       # ドキュメント (要件, 設計, マイルストーン, テスト戦略等)
 ```
 
 ---
@@ -225,19 +238,91 @@ sequenceDiagram
 
 ---
 
-## 6. D1 データベース定義 (確定版)
+## 6. D1 データベース設計 & ER図 (確定版)
+
+### 6.1 ER図 (Entity-Relationship Diagram)
+
+```mermaid
+erDiagram
+    stocks ||--o{ tags : "has"
+    stocks ||--o| ai_comments : "receives"
+
+    stocks {
+        TEXT id PK "UUID"
+        TEXT content "ストック本文 (最大1000文字)"
+        TEXT image_keys "添付R2キー配列 (JSON)"
+        DATETIME created_at "作成日時 (UTC)"
+        DATETIME updated_at "更新日時 (UTC)"
+    }
+
+    tags {
+        TEXT id PK "UUID"
+        TEXT stock_id FK "紐づくストックID (CASCADE)"
+        TEXT name "タグ名 (例: #エンジニアリング)"
+    }
+
+    ai_comments {
+        TEXT id PK "UUID"
+        TEXT stock_id FK "紐づくストックID (UNIQUE, CASCADE)"
+        TEXT comment "Workers AI生成の内省・問いかけ"
+        DATETIME created_at "生成日時 (UTC)"
+    }
+
+    user_stats {
+        TEXT id PK "'default' (シングルトン)"
+        INTEGER score "累計スコア (投稿+10, 再発見+20)"
+        INTEGER total_stocks "累計ストック数"
+        INTEGER rediscovery_count "累計再発見読了数"
+        INTEGER current_streak "現在の連続記録日数"
+        INTEGER max_streak "過去最高の連続記録日数"
+        TEXT last_stock_date "最終投稿日 (YYYY-MM-DD JST)"
+        TEXT last_rediscovery_date "最終再発見読了日 (YYYY-MM-DD JST)"
+    }
+
+    goals {
+        TEXT id PK "UUID"
+        TEXT title "目標・ビジョンタイトル"
+        TEXT category "分類 ('general' | 'vision' | 'monthly')"
+        TEXT color "テーマカラー ('teal' | 'emerald' | 'amber' etc)"
+        INTEGER is_archived "アーカイブ状態 (0: 有効, 1: アーカイブ)"
+        DATETIME created_at "作成日時"
+        DATETIME updated_at "更新日時"
+    }
+
+    weekly_summaries {
+        TEXT id PK "UUID"
+        TEXT week_key UK "週識別キー ('YYYY-Www', UNIQUE)"
+        TEXT start_date "開始日 (YYYY-MM-DD)"
+        TEXT end_date "終了日 (YYYY-MM-DD)"
+        INTEGER stock_count "対象週のストック件数"
+        TEXT summary "週次内省まとめ (AI生成テキスト)"
+        TEXT key_themes "主要テーマ配列 (JSON文字列)"
+        DATETIME created_at "作成日時"
+        DATETIME updated_at "更新日時"
+    }
+```
+
+### 6.2 D1 テーブル定義 & インデックス (全マイグレーション統合)
 
 ```sql
--- ストック本体
+-- 1. ストック（日々の内省・記録）テーブル
 CREATE TABLE IF NOT EXISTS stocks (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
-    image_keys TEXT, -- JSON文字列 (Milestone 3以降使用)
+    image_keys TEXT, -- JSON文字列 (Milestone 3画像添付)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- AIコメント
+-- 2. テーマ・タグ
+CREATE TABLE IF NOT EXISTS tags (
+    id TEXT PRIMARY KEY,
+    stock_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
+);
+
+-- 3. AIコメントテーブル
 CREATE TABLE IF NOT EXISTS ai_comments (
     id TEXT PRIMARY KEY,
     stock_id TEXT NOT NULL UNIQUE,
@@ -246,15 +331,7 @@ CREATE TABLE IF NOT EXISTS ai_comments (
     FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
 );
 
--- テーマ・目標・タグ
-CREATE TABLE IF NOT EXISTS tags (
-    id TEXT PRIMARY KEY,
-    stock_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
-);
-
--- ユーザー統計（シングルユーザー用: id='default'）
+-- 4. ユーザー統計（シングルユーザー用: id='default'）
 CREATE TABLE IF NOT EXISTS user_stats (
     id TEXT PRIMARY KEY DEFAULT 'default',
     score INTEGER DEFAULT 0,
@@ -262,6 +339,37 @@ CREATE TABLE IF NOT EXISTS user_stats (
     rediscovery_count INTEGER DEFAULT 0,
     current_streak INTEGER DEFAULT 0,
     max_streak INTEGER DEFAULT 0,
-    last_stock_date TEXT -- 'YYYY-MM-DD'
+    last_stock_date TEXT, -- YYYY-MM-DD
+    last_rediscovery_date TEXT -- YYYY-MM-DD (同日の重複加算防止)
 );
+
+-- 5. 目標・ビジョン管理テーブル
+CREATE TABLE IF NOT EXISTS goals (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'general',
+    color TEXT NOT NULL DEFAULT 'teal',
+    is_archived INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. 週次 AI サマリーレポートテーブル
+CREATE TABLE IF NOT EXISTS weekly_summaries (
+    id TEXT PRIMARY KEY,
+    week_key TEXT NOT NULL UNIQUE,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    stock_count INTEGER NOT NULL,
+    summary TEXT NOT NULL,
+    key_themes TEXT, -- JSON文字列 (例: ["プログラミング", "内省習慣"])
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- インデックス
+CREATE INDEX IF NOT EXISTS idx_stocks_created_at ON stocks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tags_stock_id ON tags(stock_id);
+CREATE INDEX IF NOT EXISTS idx_goals_created_at ON goals(created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_weekly_summaries_week_key ON weekly_summaries(week_key DESC);
 ```

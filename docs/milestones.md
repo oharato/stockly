@@ -176,6 +176,7 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
 - [x] **6.4 Cloudflare Access 保護下での本番 E2E 自動テスト実行基盤 (Service Token 完全対応)**:
   - **実装完了**:
     - **Cloudflare Access Service Token 連携 (本番・CI標準)**: `cf zero-trust access service-tokens create` で `Stockly E2E Test Token` を発行。Access Application "Stockly" に `E2E Service Token Access` ポリシー（`decision: "non_identity"`）を設定。
-    - **Playwright 自動ヘッダー注入 (`playwright.config.ts` & `scripts/run-e2e-prod.ts`)**: `.env` の `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` を検知し、`CF-Access-Client-Id` / `CF-Access-Client-Secret` を HTTP ヘッダーに自動注入。
+    - **Playwright 自動ヘッダー注入 (`playwright.config.ts`)**: `.env` の `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` を検知し、`CF-Access-Client-Id` / `CF-Access-Client-Secret` を HTTP ヘッダーに自動注入。`pnpm test:e2e:prod` で即座に実行可能。
     - **完全常時保護**: Access を一切 OFF / バイパスすることなく、PIN 認証画面を透過して本番 E2E 自動テストが約 4 秒台で 100% 成功。
-    - **フォールバック**: Service Token 未設定環境用の一時バイパス & 自動復元ラッパーも継続サポート。
+    - **Read-Only の安全設計**: 本番 E2E テストは画面描画、検索、タグフィルター、タブ遷移の検証に限定し、既存ストックやストリークなどのユーザー実データには一切書き込み・影響を与えない。
+    - **手動切替スクリプト**: 必要に応じてワンタッチで保護状態を変更できる `scripts/access-toggle.ts`（`pnpm run access:on` / `pnpm run access:off` / `pnpm run access:status`）も完備。

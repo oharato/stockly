@@ -40,6 +40,7 @@ Thumbs.db
 *.png
 *.jpg
 *.jpeg
+!apps/web/public/*.png
 ignore/
 
 # Test outputs
