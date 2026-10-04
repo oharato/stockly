@@ -191,3 +191,24 @@ GitHub Actions ランナー（Azure データセンター IP）から Cloudflare
 - **内部動作**: D1 に対し `SELECT COUNT(*) as count FROM stocks` を発行し、テーブルの存在とデータ読み込み（Read）を実際に実行。
 - **TLS 指紋対策**: OpenSSL 由来のボット判定を回避するため、Playwright の `request.newContext()`（BoringSSL ベースの HTTP クライアント）を使用して Service Token 認証を通過。
 - **所要時間**: 約 **300ms**（0.3秒）で完了し、デプロイ直後の破損やマイグレーション未適用を即時検知。
+
+### 6.7 GitHub Actions 条件分岐・シークレット評価規約
+
+ワークフローのステップ実行制御（`if:`）において、シークレット有無によるスキップ判定を行う際は以下の構文仕様を遵守する：
+
+1. **`secrets` コンテキストの直接参照禁止**:
+   - ステップの `if:` 式内から `secrets` を直接参照（例: `secrets.FOO != ''`）することは GitHub Actions のセキュリティ制約により不可（`Unrecognized named-value: 'secrets'` エラー）。
+2. **二重波括弧 `${{ }}` の禁止**:
+   - `if:` 式は暗黙的に式コンテキストとして解釈されるため、`${{ ... }}` で囲むと構文エラー（`Unexpected symbol: '${{'`）となる。
+3. **安全なマッピングパターン**:
+   - ジョブレベルの `env:` でシークレットを展開・マッピングし、ステップの `if:` 式内では `env.VARIABLE_NAME != ''` として評価する。
+   ```yaml
+   jobs:
+     deploy:
+       env:
+         MY_SECRET: ${{ secrets.MY_SECRET }}
+       steps:
+         - name: Conditional Step
+           if: env.MY_SECRET != ''
+           run: ...
+   ```

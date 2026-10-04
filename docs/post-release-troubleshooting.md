@@ -72,14 +72,67 @@
 
 ---
 
+### 問題5: Cloudflare Bot Fight Mode (WAF) による CI 上のブラウザ内 POST 遮断
+
+- **事象**:
+  - GitHub Actions 上で Headless Chromium を起動し、本番サイト（`https://stockly.ohchans.com`）の UI からストック作成フォームを入力・送信（ブラウザ内 `fetch` による `POST /api/stocks`）すると、Cloudflare WAF が HTTP 403（`Just a moment...` の JavaScript チャレンジ）を返し、テストがタイムアウト失敗する。
+  - `User-Agent` や `navigator.webdriver` を偽装しても回避できず、Cloudflare Access の Service Token をヘッダー・Cookie で渡しても WAF の Bot Challenge が先に発動した。
+- **根本原因**:
+  - **データセンター IP × ヘッドレスブラウザの指紋検知**:
+    - GitHub Actions ランナー（Azure データセンター IP）からのトラフィックに対し、Cloudflare の Bot Fight Mode が TCP/TLS 指紋、HTTP/2 設定、JavaScript 実行挙動を総合評価して自動化ボットと判定。
+  - **Playwright APIRequestContext と Headless Browser の挙動差**:
+    - 通常の Node.js `fetch`（OpenSSL スタック）やヘッドレスブラウザのスクリプト実行はボット判定されやすい一方、Playwright の `request.newContext()`（Chromium 内蔵 BoringSSL スタック）は Chrome ブラウザと完全に一致する TLS 指紋（Cipher Suites, TLS Extensions）を持つため、WAF の Bot Fight Mode を自然に透過できる。
+- **実施した解決策**:
+  - **テストヘルパー分離と透過プロキシアーキテクチャ (`cf-proxy.ts`)**:
+    - ブラウザが送信する API リクエスト（`/api/*`）を Playwright の `page.route` でインターセプト。
+    - リクエストを Playwright の `request.newContext()`（BoringSSL ベース）経由で本番 API へ中継し、Service Token（`CF-Access-Client-Id` / `Secret`）および認証 Cookie を付与。
+    - テストコード本体（`prod.spec.ts`）からは認証やプロキシの記述を一切排除し、**「ボタンクリック」「モーダル入力」「検索」「タブ遷移」「削除ボタン操作」という純粋な実ブラウザ DOM 操作** のみで完結する設計を実現。
+
+---
+
+### 問題6: GitHub Actions if 条件式での secrets 参照エラー (`Unrecognized named-value: 'secrets'`)
+
+- **事象**:
+  - `.github/workflows/ci.yml` のステップ `if:` 条件式に `${{ secrets.CF_ACCESS_CLIENT_ID != '' }}` と記述したところ、IDE の GitHub Actions Linter および Actions ランナーで以下の構文エラーが発生：
+    - `Unrecognized named-value: 'secrets'`
+    - `Unexpected symbol: '${{'. Located at position 1 within expression`
+- **根本原因**:
+  - **二重波括弧の構文違反**: GitHub Actions の `if:` 条件式はそれ自体が式コンテキスト（Expression Context）として暗黙的に評価されるため、`${{ ... }}` で囲むと構文エラーになる。
+  - **secrets コンテキストのスコープ制限**: セキュリティ上の仕様により、ステップの `if:` 式から `secrets` コンテキストを直接参照することは禁止されている（意図しないシークレットの流出や条件分岐の漏洩を防止するため）。
+- **実施した解決策**:
+  - **ジョブレベル `env:` への安全なマッピング**:
+    - ジョブレベルの `env:` セクションで `${{ secrets.CF_ACCESS_CLIENT_ID }}` を環境変数にマッピング。
+    - ステップの `if:` 条件式内では `env.CF_ACCESS_CLIENT_ID != ''` のように `env` コンテキスト経由で参照・判定する公式ベストプラクティスを適用。
+
+---
+
+### 問題7: E2E テストの実行時間遅延と Playwright ブラウザ・OS 依存キャッシュ
+
+- **事象**:
+  - CI パイプライン内で Playwright を実行する際、毎回の Chromium バイナリ（約 150MB）ダウンロードと OS 依存パッケージ（`apt install`）に 40〜50 秒以上を消費し、CI/CD 全体の実行速度を圧迫していた。
+- **根本原因**:
+  - GitHub Actions ランナーは使い捨て仮想マシンのため、Playwright のインストール先（`~/.cache/ms-playwright`）がキャッシュされていなかった。
+  - さらに `install-deps` もキャッシュヒットの有無に関わらず無条件で実行されていた。
+- **実施した解決策**:
+  - **ブラウザバイナリと OS 依存パッケージの二層キャッシュ最適化**:
+    - `actions/cache@v6` で `~/.cache/ms-playwright` を `pnpm-lock.yaml` のハッシュ値でキャッシュ。
+    - `if: steps.playwright-cache.outputs.cache-hit != 'true'` を付与し、キャッシュヒット時は `playwright install chromium` のダウンロードおよび `install-deps` の apt 処理を完全にスキップ。
+  - **パイプラインの二層化（CI/CD vs 日次 E2E）**:
+    - デプロイ直後の CI/CD（`ci.yml`）では実ブラウザ起動を省き、Playwright APIRequestContext を用いた超高速 Health API & D1 Read 検証（`scripts/verify-health.mjs`）で **約 300ms** で健全性確認を完了（CI/CD 全体で約 1 分）。
+    - 重い実ブラウザ DOM 操作 E2E は日次定期実行（`e2e-daily.yml`）に分離し、キャッシュ活用により **約 35 秒** で全件パスする高速パイプラインを確立。
+
+---
+
 ## 2. なぜ事前に防げなかったのか（要因分析）
 
-| 失敗の分類                 | 根本要因                                                                               | なぜ事前に気付けなかったか                                                                                                               |
-| :------------------------- | :------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- |
-| **リアクティビティ設計**   | Svelte 5 の `$effect` に外部ネットワーク通信（API呼び出し）を直書きした                | ローカル環境ではリクエストが瞬時に終わり、呼び出し回数の爆発やエッジレートリミット（429）が発生しなかったため                            |
-| **エッジインフラへの理解** | Cloudflare Workers / Free プランのレートリミット特性を考慮していなかった               | モックテストやローカル Miniflare では 429 スロットリングがシミュレートされていなかったため                                               |
-| **PWA キャッシュ戦略**     | PWA を導入したものの「キャッシュの更新・破棄ライフサイクル」の設計が後回しになっていた | PC ブラウザの開発者ツールで「キャッシュの無効化（Disable cache）」を有効にして開発していたため、実機の CacheStorage 残留問題を見落とした |
-| **テストピラミッドの偏り** | 単体テスト（Vitest）のみに依存し、実ブラウザによる結合・E2E テストがなかった           | ブラウザのレンダリング、キー入力イベント、実際の HTTP 通信、Service Worker が連動したテストを実施していなかったため                      |
+| 失敗・課題の分類           | 根本要因                                                                                     | なぜ事前に気付けなかったか                                                                                                               |
+| :------------------------- | :------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- |
+| **リアクティビティ設計**   | Svelte 5 の `$effect` に外部ネットワーク通信（API呼び出し）を直書きした                      | ローカル環境ではリクエストが瞬時に終わり、呼び出し回数の爆発やエッジレートリミット（429）が発生しなかったため                            |
+| **エッジインフラへの理解** | Cloudflare Workers / Free プランのレートリミット特性を考慮していなかった                     | モックテストやローカル Miniflare では 429 スロットリングがシミュレートされていなかったため                                               |
+| **PWA キャッシュ戦略**     | PWA を導入したものの「キャッシュの更新・破棄ライフサイクル」の設計が後回しになっていた       | PC ブラウザの開発者ツールで「キャッシュの無効化（Disable cache）」を有効にして開発していたため、実機の CacheStorage 残留問題を見落とした |
+| **テストピラミッドの偏り** | 単体テスト（Vitest）のみに依存し、実ブラウザによる結合・E2E テストがなかった                 | ブラウザのレンダリング、キー入力イベント、実際の HTTP 通信、Service Worker が連動したテストを実施していなかったため                      |
+| **エッジ WAF / TLS 指紋**  | データセンター IP からのブラウザ自動化通信に対する Bot Fight Mode (403) を考慮していなかった | ローカル PC（住宅用 ISP）からの通信では Bot Fight Mode の厳格なチャレンジがトリガーされなかったため                                      |
+| **GitHub Actions 構文**    | `if:` 条件式内で `secrets` コンテキストが直接参照できない仕様を認識していなかった            | 通常の `env:` や `run:` での `${{ secrets... }}` の感覚で `if:` に記述してしまったため                                                   |
 
 ---
 
@@ -94,5 +147,10 @@
 3. **PWA 導入アプリには「強制キャッシュクリア機構」を Day 1 で常設する**:
    - Service Worker を導入した瞬間から、実機でのキャッシュトラブルは不可避となる。
    - アプリの初期実装段階で、ワンタップで Service Worker と CacheStorage を全消去して最新版を取得できる仕組み（および `controllerchange` リロードハンドラ）を必須要件とする。
-4. **本番デプロイ前に Playwright E2E テスト（高速入力・実通信検証）をパスさせる**:
-   - UI 単体テストだけでなく、実際のブラウザで高速入力や連続クリックを行い、429 やレンダリングの破綻が起きないかを自動テストで検証してからリリースする。
+4. **本番デプロイ検証は「軽量 Health & DB Read」と「実ブラウザ E2E」の二層で構築する**:
+   - デプロイ直後は軽量・高速（~300ms）な D1 読み込みヘルスチェックで即座にデプロイ成否を判定する。
+   - 実ブラウザ E2E は別ジョブまたは日次定期実行とし、WAF / Bot Challenge 耐性を持つヘルパー（`cf-proxy.ts`）を介して純粋な DOM 操作を検証する。
+5. **GitHub Actions の `if:` 式では常に `env:` 経由でシークレットを評価する**:
+   - `secrets` コンテキストを `if:` に直書きせず、ジョブの `env:` にマッピングした上で `if: env.KEY != ''` で判定する。
+6. **CI 上の Playwright はバイナリと OS 依存パッケージを両方キャッシュする**:
+   - `~/.cache/ms-playwright` のキャッシュヒット判定により、バイナリダウンロードと `install-deps` の両方をスキップし、セットアップ時間を 0 秒化する。
