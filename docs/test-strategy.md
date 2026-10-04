@@ -144,10 +144,10 @@ Kent C. Dodds（Testing Library 作者）が提唱した **「テストトロフ
 
 ### 6.1 パイプラインの役割分離（CI/CD vs 日次本番 E2E）
 
-| ワークフロー             | ファイル                          | トリガー                             | 主な処理 & 所要時間                                                                                                                                                                                                             |
-| :----------------------- | :-------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **CI & CD**              | `.github/workflows/ci.yml`        | `main` への push / PR                | **高速パス (~30秒)**: `voidzero-dev/setup-vp` による Vite+ キャッシュ活用、`vp check`（型・リント・フォーマット）、`vp test --run`、Rolldown ビルド、`pnpm run deploy`（`cf deploy`）による Cloudflare Workers 本番自動デプロイ |
-| **Daily Production E2E** | `.github/workflows/e2e-daily.yml` | 毎朝 09:00 JST / `workflow_dispatch` | **高信頼検証 (~1分)**: 実本番環境（`https://stockly.ohchans.com`）に対するヘッドレス Chromium を用いたストック投稿・検索・削除・タブ遷移・レートリミット耐久のフルサイクル自動検証                                              |
+| ワークフロー             | ファイル                          | トリガー                             | 主な処理 & 所要時間                                                                                                                                                                                                                                                                                     |
+| :----------------------- | :-------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **CI & CD**              | `.github/workflows/ci.yml`        | `main` への push / PR                | **高速パス (~1分)**: `voidzero-dev/setup-vp` による Vite+ キャッシュ活用、`vp check`（型・リント・フォーマット）、`vp test --run`、Rolldown ビルド、`pnpm run deploy`（`cf deploy`）による Cloudflare Workers 本番自動デプロイ、および `verify-health.mjs` による **D1 データベース読み込み健全性検証** |
+| **Daily Production E2E** | `.github/workflows/e2e-daily.yml` | 毎朝 09:00 JST / `workflow_dispatch` | **高信頼検証 (~1分)**: 実本番環境（`https://stockly.ohchans.com`）に対するヘッドレス Chromium を用いたストック投稿・検索・削除・タブ遷移・レートリミット耐久のフルサイクル自動検証                                                                                                                      |
 
 ### 6.2 Playwright キャッシュアーキテクチャ
 
@@ -181,3 +181,12 @@ GitHub Actions ランナー（Azure データセンター IP）から Cloudflare
 
 - `.github/dependabot.yml` を配置し、`npm` および `github-actions` の依存パッケージを週次でチェック。
 - **グループ化運用**: `minor` および `patch` の更新は `dependencies-minor-patch` / `actions-minor-patch` として単一 PR に集約し、通知と PR の氾濫を防止。
+
+### 6.6 デプロイ後 Health API & DB 読み込み検証 (`scripts/verify-health.mjs`)
+
+デプロイ完了直後に、アプリケーションが本番環境で実際に稼働し、D1 データベースと正常に接続できているかを自動保証する軽量ヘルスチェックを `ci.yml` 内に常備：
+
+- **エンドポイント**: `GET /api/health`
+- **内部動作**: D1 に対し `SELECT COUNT(*) as count FROM stocks` を発行し、テーブルの存在とデータ読み込み（Read）を実際に実行。
+- **TLS 指紋対策**: OpenSSL 由来のボット判定を回避するため、Playwright の `request.newContext()`（BoringSSL ベースの HTTP クライアント）を使用して Service Token 認証を通過。
+- **所要時間**: 約 **300ms**（0.3秒）で完了し、デプロイ直後の破損やマイグレーション未適用を即時検知。
