@@ -77,7 +77,7 @@ jobs:
           MAX_RETRIES=5
           RETRY_COUNT=0
           SUCCESS=0
-
+          
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "Attempt $RETRY_COUNT of $MAX_RETRIES..."
@@ -103,7 +103,7 @@ jobs:
             echo "Health check failed or DB not ready yet, retrying in 3 seconds..."
             sleep 3
           done
-
+          
           if [ $SUCCESS -ne 1 ]; then
             echo "❌ Production health check failed after $MAX_RETRIES attempts."
             exit 1

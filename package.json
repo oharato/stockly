@@ -19,7 +19,8 @@
     "access:status": "node --experimental-strip-types scripts/access-toggle.ts status",
     "access:on": "node --experimental-strip-types scripts/access-toggle.ts on",
     "access:off": "node --experimental-strip-types scripts/access-toggle.ts off",
-    "import:csv": "node --experimental-strip-types scripts/import-csv.ts"
+    "import:csv": "node --experimental-strip-types scripts/import-csv.ts",
+    "verify:health": "node scripts/verify-health.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
