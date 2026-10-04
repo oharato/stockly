@@ -373,3 +373,13 @@ CREATE INDEX IF NOT EXISTS idx_tags_stock_id ON tags(stock_id);
 CREATE INDEX IF NOT EXISTS idx_goals_created_at ON goals(created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_weekly_summaries_week_key ON weekly_summaries(week_key DESC);
 ```
+
+### 6.3 テスト環境における D1 エミュレーション設計
+
+単体・結合テスト（Vitest）において、本番 Cloudflare D1 と完全に同一の SQL 実行結果・制約挙動をミリ秒単位で高速再現するため、以下のテスティングアーキテクチャを採用しています：
+
+- **エンジン**: Node.js LTS (v24.13.0+) 組み込みのネイティブ C++ SQLite 実装（`node:sqlite` の `DatabaseSync(':memory:')`）。
+- **マイグレーション自動適用**: テスト用インスタンス初期化時に `apps/api/migrations/*.sql` を昇順で一括適用。
+- **制約保証**: `PRAGMA foreign_keys = ON;` を有効化し、CASCADE 削除や親レコード存在チェックを本番同様に厳密検証。
+- **D1Database インターフェース完全互換**: `prepare()`, `bind()`, `all()`, `first()`, `run()`, `batch()`, `raw()`, `exec()` を本物の SQLite ステートメントに透過的に委譲。
+- **手動モック追随コストのゼロ化**: 旧来の手書きクエリ文字列判定（`query.includes`）を全廃したため、スキーマやクエリを変更してもテストヘルパーの修正が一切不要。

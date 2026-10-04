@@ -180,3 +180,9 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
     - **完全常時保護**: Access を一切 OFF / バイパスすることなく、PIN 認証画面を透過して本番 E2E 自動テストが約 4 秒台で 100% 成功。
     - **Read-Only の安全設計**: 本番 E2E テストは画面描画、検索、タグフィルター、タブ遷移の検証に限定し、既存ストックやストリークなどのユーザー実データには一切書き込み・影響を与えない。
     - **手動切替スクリプト**: 必要に応じてワンタッチで保護状態を変更できる `scripts/access-toggle.ts`（`pnpm run access:on` / `pnpm run access:off` / `pnpm run access:status`）も完備。
+- [x] **6.5 D1 テスト基盤の刷新（手書きモック全廃 ➔ 本物インメモリ SQLite & マイグレーション自動適用）**:
+  - **課題解消**: 初期実装の 238 行の手書きクエリ判定モック（`query.includes`）を完全撤廃。SQL カラムやクエリ変更時の手動モック追随コストをゼロ化。
+  - **本物 SQLite エンジン導入 (`node:sqlite`)**: Node.js LTS (v24.13.0+) 組み込みの `DatabaseSync(':memory:')` を採用し、外部依存ゼロ・起動 1.1 秒で全テストが走る超高速インメモリ D1 基盤を構築。
+  - **マイグレーション自動ロード**: `apps/api/migrations/*.sql`（0001〜0004）を昇順で自動適用。
+  - **完全な制約検証**: `PRAGMA foreign_keys = ON;` を有効化し、外部キー制約違反や SQL 構文エラーをテスト実行時に 100% 検出可能に強化。
+  - **公式最新スタック検証の文書化**: `@cloudflare/vitest-plugin` および `miniflare` との互換性検証結果（Vite+ 内蔵 Vitest 5 との整合性）を `docs/test-strategy.md` に詳細記録。
