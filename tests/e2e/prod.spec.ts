@@ -79,9 +79,49 @@ test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () =
       }
     }
 
-    // すべての同一ドメインリクエストに Service Token と テストユーザーID を確実に注入
+    // Cloudflare Bot Challenge 回避: ブラウザからの API 通信 (/api/*) を
+    // Node.js の Playwright APIRequestContext 経由で代行 fetch して fulfill
+    await context.route("**/api/**", async (route) => {
+      const req = route.request();
+      const method = req.method();
+      const postData = req.postData();
+      const headers = {
+        ...req.headers(),
+        "x-stockly-user-id": "e2e-test",
+        ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
+          ? {
+              "cf-access-client-id": process.env.CF_ACCESS_CLIENT_ID,
+              "cf-access-client-secret": process.env.CF_ACCESS_CLIENT_SECRET,
+            }
+          : {}),
+      };
+
+      try {
+        const response = await request.fetch(req.url(), {
+          method,
+          headers,
+          data: postData || undefined,
+        });
+
+        await route.fulfill({
+          status: response.status(),
+          headers: response.headers(),
+          body: await response.body(),
+        });
+      } catch (e) {
+        console.error("[Prod API Proxy Error]", e);
+        await route.abort();
+      }
+    });
+
+    // 静的アセット等の同一ドメインリクエストに Service Token と テストユーザーID を注入
     await context.route("**/*", async (route) => {
       const url = route.request().url();
+      if (url.includes("/api/")) {
+        // /api/ は上記のハンドラで処理済み
+        await route.continue();
+        return;
+      }
       if (url.includes("beacon.min.js")) {
         await route.abort();
         return;
