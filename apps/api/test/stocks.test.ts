@@ -325,4 +325,104 @@ describe("Stockly API Endpoints", () => {
     const afterDeleteData = (await afterDeleteRes.json()) as any;
     expect(afterDeleteData.goals.length).toBe(0);
   });
+
+  it("should completely isolate e2e-test user data and stats from default user", async () => {
+    const mockDB = createMockDB();
+
+    // 1. default ユーザーで通常ストック作成
+    await app.request(
+      "/api/stocks",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "通常ユーザーのストック" }),
+      },
+      { DB: mockDB },
+    );
+
+    // default ユーザーの stats 確認
+    const defaultStatsRes = await app.request("/api/stats", {}, { DB: mockDB });
+    const defaultStats = (await defaultStatsRes.json()) as any;
+    expect(defaultStats.total_stocks).toBe(1);
+    expect(defaultStats.score).toBe(10);
+
+    // 2. e2e-test ユーザーヘッダーを付けてテストストックを作成
+    const testCreateRes = await app.request(
+      "/api/stocks",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Stockly-User-Id": "e2e-test",
+        },
+        body: JSON.stringify({ content: "テスト専用ストック" }),
+      },
+      { DB: mockDB },
+    );
+    expect(testCreateRes.status).toBe(201);
+    const testStock = (await testCreateRes.json()) as any;
+
+    // 3. default ユーザーで一覧取得 ➔ テストストックが混ざっていないこと
+    const defaultListRes = await app.request("/api/stocks", {}, { DB: mockDB });
+    const defaultList = (await defaultListRes.json()) as any;
+    expect(defaultList.stocks.length).toBe(1);
+    expect(defaultList.stocks[0].content).toBe("通常ユーザーのストック");
+
+    // default ユーザーの stats が汚染されていないこと (total_stocks 1, score 10 のまま)
+    const defaultStatsAfterRes = await app.request("/api/stats", {}, { DB: mockDB });
+    const defaultStatsAfter = (await defaultStatsAfterRes.json()) as any;
+    expect(defaultStatsAfter.total_stocks).toBe(1);
+    expect(defaultStatsAfter.score).toBe(10);
+
+    // 4. e2e-test ユーザーヘッダーで一覧取得 ➔ テストストックのみが返ること
+    const testListRes = await app.request(
+      "/api/stocks",
+      {
+        headers: { "X-Stockly-User-Id": "e2e-test" },
+      },
+      { DB: mockDB },
+    );
+    const testList = (await testListRes.json()) as any;
+    expect(testList.stocks.length).toBe(1);
+    expect(testList.stocks[0].content).toBe("テスト専用ストック");
+
+    // e2e-test ユーザーの stats を確認
+    const testStatsRes = await app.request(
+      "/api/stats",
+      {
+        headers: { "X-Stockly-User-Id": "e2e-test" },
+      },
+      { DB: mockDB },
+    );
+    const testStats = (await testStatsRes.json()) as any;
+    expect(testStats.total_stocks).toBe(1);
+    expect(testStats.score).toBe(10);
+
+    // 5. e2e-test ユーザーでテストストックを削除
+    const deleteRes = await app.request(
+      `/api/stocks/${testStock.id}`,
+      {
+        method: "DELETE",
+        headers: { "X-Stockly-User-Id": "e2e-test" },
+      },
+      { DB: mockDB },
+    );
+    expect(deleteRes.status).toBe(200);
+
+    // e2e-test ユーザーのストックが 0 件になったこと
+    const testListAfterDelete = await app.request(
+      "/api/stocks",
+      {
+        headers: { "X-Stockly-User-Id": "e2e-test" },
+      },
+      { DB: mockDB },
+    );
+    const testListDataAfter = (await testListAfterDelete.json()) as any;
+    expect(testListDataAfter.stocks.length).toBe(0);
+
+    // default ユーザーのストックは依然として 1 件存在すること
+    const defaultListFinal = await app.request("/api/stocks", {}, { DB: mockDB });
+    const defaultListFinalData = (await defaultListFinal.json()) as any;
+    expect(defaultListFinalData.stocks.length).toBe(1);
+  });
 });

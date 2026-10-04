@@ -3,12 +3,13 @@ import type { UserStats } from "../schemas/stock";
 /**
  * ユーザー統計情報を取得（存在しない場合はデフォルト値を返す）
  */
-export async function getUserStats(db: D1Database): Promise<UserStats> {
+export async function getUserStats(db: D1Database, userId: string = "default"): Promise<UserStats> {
   const stats = await db
     .prepare(
       `SELECT score, total_stocks, rediscovery_count, current_streak, max_streak, last_stock_date, last_rediscovery_date
-       FROM user_stats WHERE id = 'default'`,
+       FROM user_stats WHERE id = ?`,
     )
+    .bind(userId)
     .first<UserStats>();
 
   return (
@@ -27,15 +28,17 @@ export async function getUserStats(db: D1Database): Promise<UserStats> {
 /**
  * ストリーク計算に必要な情報のみを軽量に取得
  */
-export async function getStreakContext(db: D1Database): Promise<{
+export async function getStreakContext(
+  db: D1Database,
+  userId: string = "default",
+): Promise<{
   current_streak: number;
   max_streak: number;
   last_stock_date: string | null;
 }> {
   const stats = await db
-    .prepare(
-      `SELECT current_streak, max_streak, last_stock_date FROM user_stats WHERE id = 'default'`,
-    )
+    .prepare(`SELECT current_streak, max_streak, last_stock_date FROM user_stats WHERE id = ?`)
+    .bind(userId)
     .first<{ current_streak: number; max_streak: number; last_stock_date: string | null }>();
 
   return {
@@ -52,8 +55,9 @@ export async function getStreakContext(db: D1Database): Promise<{
 export async function incrementRediscoveryCount(
   db: D1Database,
   todayJST: string,
+  userId: string = "default",
 ): Promise<UserStats> {
-  const current = await getUserStats(db);
+  const current = await getUserStats(db, userId);
   if (current.last_rediscovery_date === todayJST) {
     // すでに今日振り返り済みの場合は加算せず現状を返す
     return current;
@@ -65,10 +69,10 @@ export async function incrementRediscoveryCount(
        SET rediscovery_count = rediscovery_count + 1,
            score = score + 20,
            last_rediscovery_date = ?
-       WHERE id = 'default'`,
+       WHERE id = ?`,
     )
-    .bind(todayJST)
+    .bind(todayJST, userId)
     .run();
 
-  return getUserStats(db);
+  return getUserStats(db, userId);
 }

@@ -249,6 +249,7 @@ erDiagram
 
     stocks {
         TEXT id PK "UUID"
+        TEXT user_id "ユーザー識別子 ('default' | 'e2e-test')"
         TEXT content "ストック本文 (最大1000文字)"
         TEXT image_keys "添付R2キー配列 (JSON)"
         DATETIME created_at "作成日時 (UTC)"
@@ -308,6 +309,7 @@ erDiagram
 -- 1. ストック（日々の内省・記録）テーブル
 CREATE TABLE IF NOT EXISTS stocks (
     id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT 'default', -- 'default': 実ユーザー, 'e2e-test': テスト隔離
     content TEXT NOT NULL,
     image_keys TEXT, -- JSON文字列 (Milestone 3画像添付)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -331,7 +333,7 @@ CREATE TABLE IF NOT EXISTS ai_comments (
     FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE
 );
 
--- 4. ユーザー統計（シングルユーザー用: id='default'）
+-- 4. ユーザー統計（シングルユーザー用: id='default', テスト用: id='e2e-test'）
 CREATE TABLE IF NOT EXISTS user_stats (
     id TEXT PRIMARY KEY DEFAULT 'default',
     score INTEGER DEFAULT 0,
@@ -369,6 +371,7 @@ CREATE TABLE IF NOT EXISTS weekly_summaries (
 
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_stocks_created_at ON stocks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stocks_user_id ON stocks(user_id);
 CREATE INDEX IF NOT EXISTS idx_tags_stock_id ON tags(stock_id);
 CREATE INDEX IF NOT EXISTS idx_goals_created_at ON goals(created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_weekly_summaries_week_key ON weekly_summaries(week_key DESC);
@@ -393,7 +396,7 @@ Cloudflare の最新ドキュメント（2025〜2026）に基づき、公式推�
 上記を踏まえ、現行バージョンでは Node.js LTS (v24.13.0+) 組み込みのネイティブ SQLite（`DatabaseSync`）を活用したインメモリ D1 テスト基盤を採用しています：
 
 - **エンジン**: 追加外部依存ゼロの Node.js 組み込み C++ SQLite エンジン（`DatabaseSync(':memory:')`）。全 51 件のテストが **1.1 秒** で完了。
-- **マイグレーション自動適用**: テスト初期化時に `apps/api/migrations/*.sql`（0001〜0004）を昇順で一括適用。
+- **マイグレーション自動適用**: テスト初期化時に `apps/api/migrations/*.sql`（0001〜0005）を昇順で一括適用。
 - **完全な制約保証**: `PRAGMA foreign_keys = ON;` を有効化し、CASCADE 削除や親レコード存在チェックを本番同様に厳密検証。
 - **D1Database インターフェース完全互換**: `prepare()`, `bind()`, `all()`, `first()`, `run()`, `batch()`, `raw()`, `exec()` を本物の SQLite ステートメントに透過的に委譲。
 - **手動モック追随コストのゼロ化**: 旧来の手書きクエリ文字列判定（`query.includes`）を全廃したため、今後スキーマや SQL を変更してもテストヘルパーの修正が一切不要。
@@ -402,3 +405,19 @@ Cloudflare の最新ドキュメント（2025〜2026）に基づき、公式推�
 
 - **`@cloudflare/vitest-plugin` への完全移行**:
   - Cloudflare 公式の `@cloudflare/vitest-plugin` が Vitest 5.x（または Vite+ の内蔵 Vitest バージョン）に正式対応した段階で、自作の `mock-db.ts` ラッパーを廃止し、公式の `cloudflareTest` プラグインおよび `cloudflare:test` の `applyD1Migrations()` による完全なエッジランタイム内テストへと移行する。
+
+---
+
+### 6.4 テストユーザー分離仕様 (Multi-tenant Test Isolation)
+
+本番環境（実ドメイン・実 D1）に対してユースケースに沿った書き込み E2E テストを実行する際、**ユーザー様の実データ（ストック一覧・連続記録ストリーク・スコア）を絶対に汚染しない** ための隔離仕様です。
+
+1. **コンテキスト判定**:
+   - HTTP リクエストヘッダー `X-Stockly-User-Id` を検知。
+   - `e2e-test` または `test` の場合のみテスト用コンテキストとしてルーティング。
+   - 一般ブラウザからのアクセス（ヘッダーなし）は強制的に `default` ユーザーとして安全に処理。
+2. **ストレージ完全分離**:
+   - `stocks.user_id = 'e2e-test'` でテスト投稿を保存（通常ユーザーの一覧には 1 件も混入しない）。
+   - `user_stats WHERE id = 'e2e-test'` でテスト用スコア・ストリークを加算（通常ユーザーのスコアやストリーク日数は 1 ピコグラムも変動しない）。
+3. **自動クリーンアップ**:
+   - テスト終了時にテスト用レコードを全消去。

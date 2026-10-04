@@ -1,9 +1,14 @@
 import type { Stock } from "../schemas/stock";
 
 /**
- * ストック一覧を取得（最新順、AIコメントおよびタグを JOIN、オプションでキーワード検索 & タグフィルター）
+ * ストック一覧を取得（最新順、AIコメントおよびタグを JOIN、オプションでキーワード検索 & タグフィルター & ユーザー分離）
  */
-export async function listStocks(db: D1Database, query?: string, tag?: string): Promise<Stock[]> {
+export async function listStocks(
+  db: D1Database,
+  query?: string,
+  tag?: string,
+  userId: string = "default",
+): Promise<Stock[]> {
   const trimmedQuery = query?.trim();
   const trimmedTag = tag?.trim();
 
@@ -14,8 +19,8 @@ export async function listStocks(db: D1Database, query?: string, tag?: string): 
              LEFT JOIN ai_comments a ON s.id = a.stock_id
              LEFT JOIN tags t ON s.id = t.stock_id`;
 
-  const whereClauses: string[] = [];
-  const bindings: unknown[] = [];
+  const whereClauses: string[] = ["s.user_id = ?"];
+  const bindings: unknown[] = [userId];
 
   if (trimmedQuery) {
     whereClauses.push("s.content LIKE ?");
@@ -27,10 +32,7 @@ export async function listStocks(db: D1Database, query?: string, tag?: string): 
     bindings.push(trimmedTag);
   }
 
-  if (whereClauses.length > 0) {
-    sql += ` WHERE ${whereClauses.join(" AND ")}`;
-  }
-
+  sql += ` WHERE ${whereClauses.join(" AND ")}`;
   sql += ` GROUP BY s.id ORDER BY s.created_at DESC`;
 
   const stmt = db.prepare(sql);
@@ -58,6 +60,7 @@ export async function listStocks(db: D1Database, query?: string, tag?: string): 
 
 export interface CreateStockWithStatsParams {
   id: string;
+  userId?: string;
   content: string;
   imageKeys?: string[] | null;
   tagNames?: string[] | null;
@@ -74,15 +77,16 @@ export async function createStockWithStats(
   db: D1Database,
   params: CreateStockWithStatsParams,
 ): Promise<void> {
+  const userId = params.userId || "default";
   const imageKeysJson =
     params.imageKeys && params.imageKeys.length > 0 ? JSON.stringify(params.imageKeys) : null;
 
   const batchStmts = [
     db
       .prepare(
-        `INSERT INTO stocks (id, content, image_keys, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO stocks (id, user_id, content, image_keys, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(params.id, params.content, imageKeysJson, params.now, params.now),
+      .bind(params.id, userId, params.content, imageKeysJson, params.now, params.now),
     db
       .prepare(
         `UPDATE user_stats
@@ -91,9 +95,9 @@ export async function createStockWithStats(
              current_streak = ?,
              max_streak = ?,
              last_stock_date = ?
-         WHERE id = 'default'`,
+         WHERE id = ?`,
       )
-      .bind(params.newStreak, params.newMaxStreak, params.todayJST),
+      .bind(params.newStreak, params.newMaxStreak, params.todayJST, userId),
   ];
 
   if (params.tagNames && params.tagNames.length > 0) {
@@ -115,26 +119,34 @@ export async function createStockWithStats(
 /**
  * ストック削除とユーザー統計の更新（total_stocks - 1、タグ削除）をバッチ実行
  */
-export async function deleteStockWithStats(db: D1Database, id: string): Promise<void> {
+export async function deleteStockWithStats(
+  db: D1Database,
+  id: string,
+  userId: string = "default",
+): Promise<void> {
   await db.batch([
     db.prepare(`DELETE FROM tags WHERE stock_id = ?`).bind(id),
     db.prepare(`DELETE FROM ai_comments WHERE stock_id = ?`).bind(id),
-    db.prepare(`DELETE FROM stocks WHERE id = ?`).bind(id),
-    db.prepare(
-      `UPDATE user_stats
+    db.prepare(`DELETE FROM stocks WHERE id = ? AND user_id = ?`).bind(id, userId),
+    db
+      .prepare(
+        `UPDATE user_stats
        SET total_stocks = MAX(0, total_stocks - 1)
-       WHERE id = 'default'`,
-    ),
+       WHERE id = ?`,
+      )
+      .bind(userId),
   ]);
 }
 
 /**
  * 今日の再発見（過去のストックから1日1件固定で抽出）
  * @param todayJST 今日のJST日付 ('YYYY-MM-DD')
+ * @param userId ユーザーID
  */
 export async function getDailyRediscoveryStock(
   db: D1Database,
   todayJST: string,
+  userId: string = "default",
 ): Promise<Stock | null> {
   // 今日より前に作成された過去ストックを取得
   const { results } = await db
@@ -145,11 +157,11 @@ export async function getDailyRediscoveryStock(
        FROM stocks s
        LEFT JOIN ai_comments a ON s.id = a.stock_id
        LEFT JOIN tags t ON s.id = t.stock_id
-       WHERE substr(s.created_at, 1, 10) < ?
+       WHERE s.user_id = ? AND substr(s.created_at, 1, 10) < ?
        GROUP BY s.id
        ORDER BY s.created_at ASC`,
     )
-    .bind(todayJST)
+    .bind(userId, todayJST)
     .all<{
       id: string;
       content: string;
@@ -162,7 +174,7 @@ export async function getDailyRediscoveryStock(
 
   if (!results || results.length === 0) {
     // 過去データがない場合は、今日作成されたストックも含めて最古のストックをフォールバックとして返す
-    const all = await listStocks(db);
+    const all = await listStocks(db, undefined, undefined, userId);
     return all.length > 0 ? (all[all.length - 1] ?? null) : null;
   }
 

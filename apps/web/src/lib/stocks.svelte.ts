@@ -45,9 +45,14 @@ class StockStore {
   rediscovery = $state<StockItem | null>(null);
   isRediscoveryRead = $state(false);
 
+  private aiPollTimers: any[] = [];
+
   // ローカルキャッシュに基づく即時フィルタリング (0ms 反映)
   private applyLocalFilter() {
-    if (this.allStocks.length === 0) return;
+    if (this.allStocks.length === 0) {
+      this.stocks = [];
+      return;
+    }
 
     const q = this.searchQuery.trim().toLowerCase();
     const t = this.selectedTag;
@@ -348,12 +353,17 @@ class StockStore {
       void this.fetchGoals();
 
       // 非同期のAIコメント生成完了を待ってバックグラウンドで再取得（1.5秒後 & 3.5秒後）
-      setTimeout(() => {
-        void this.fetchStocks(true);
-      }, 1500);
-      setTimeout(() => {
-        void this.fetchStocks(true);
-      }, 3500);
+      this.clearAiPollTimers();
+      this.aiPollTimers.push(
+        setTimeout(() => {
+          void this.fetchStocks(true);
+        }, 1500),
+      );
+      this.aiPollTimers.push(
+        setTimeout(() => {
+          void this.fetchStocks(true);
+        }, 3500),
+      );
     } catch (err: unknown) {
       this.handleError(err, "エラーが発生しました");
       throw err;
@@ -362,19 +372,51 @@ class StockStore {
     }
   }
 
+  private clearAiPollTimers() {
+    for (const t of this.aiPollTimers) {
+      clearTimeout(t);
+    }
+    this.aiPollTimers = [];
+  }
+
   // ストック削除
-  async deleteStock(id: string) {
+  async deleteStock(id: string, retryCount = 0): Promise<void> {
+    this.clearAiPollTimers();
+    const previousAllStocks = [...this.allStocks];
+
+    // 楽観的UI更新（初回呼び出し時に即座に画面から消す）
+    if (retryCount === 0) {
+      this.allStocks = this.allStocks.filter((s) => s.id !== id);
+      this.applyLocalFilter();
+      this.stats.total_stocks = Math.max(0, this.stats.total_stocks - 1);
+    }
+
     try {
       const res = await client.api.stocks[":id"].$delete({
         param: { id },
       });
-      if (!res.ok) throw new Error("削除に失敗しました");
-      // ローカル配列およびマスターキャッシュから除外
-      this.allStocks = this.allStocks.filter((s) => s.id !== id);
-      this.applyLocalFilter();
-      this.stats.total_stocks = Math.max(0, this.stats.total_stocks - 1);
+      if (res.status === 404) {
+        // すでに削除済みの場合は正常扱い
+        return;
+      }
+      if (!res.ok) {
+        if ((res.status === 429 || res.status === 503) && retryCount < 3) {
+          const delay = (retryCount + 1) * 1500;
+          console.warn(`[deleteStock] Throttled (${res.status}), retrying in ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+          return await this.deleteStock(id, retryCount + 1);
+        }
+        throw new Error("削除に失敗しました");
+      }
     } catch (err: unknown) {
-      this.handleError(err, "削除エラーが発生しました");
+      console.error("[deleteStock] Error occurred:", err);
+      // リトライの上限に達した、あるいは429/503以外の失敗時はロールバック
+      if (retryCount >= 3) {
+        this.allStocks = previousAllStocks;
+        this.applyLocalFilter();
+        this.stats.total_stocks = previousAllStocks.length;
+        this.handleError(err, "削除エラーが発生しました");
+      }
     }
   }
 }

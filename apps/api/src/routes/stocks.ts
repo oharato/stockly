@@ -32,6 +32,19 @@ export type Bindings = {
   STORAGE?: R2Bucket;
 };
 
+/**
+ * リクエストヘッダーからユーザーコンテキストを取得
+ * - E2Eテスト時は 'e2e-test' に切り替えてユーザー実データから完全隔離
+ * - 通常アクセス時は常に 'default'
+ */
+function getUserId(c: { req: { header: (name: string) => string | undefined } }): string {
+  const headerVal = c.req.header("X-Stockly-User-Id");
+  if (headerVal && (headerVal === "e2e-test" || headerVal === "test")) {
+    return headerVal;
+  }
+  return "default";
+}
+
 export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   // 画像アップロード (Cloudflare R2)
   .post("/api/upload", async (c) => {
@@ -104,8 +117,9 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     ),
     async (c) => {
       const { q, tag } = c.req.valid("query");
+      const userId = getUserId(c);
       try {
-        const stocks = await listStocks(c.env.DB, q, tag);
+        const stocks = await listStocks(c.env.DB, q, tag, userId);
         return c.json({ stocks });
       } catch (err: unknown) {
         console.error("listStocks error:", err);
@@ -132,8 +146,9 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     ),
     async (c) => {
       const { format } = c.req.valid("query");
+      const userId = getUserId(c);
       const todayJST = getJSTDateString();
-      const stocks = await listStocks(c.env.DB);
+      const stocks = await listStocks(c.env.DB, undefined, undefined, userId);
 
       if (format === "markdown") {
         const md = formatAsMarkdown(stocks, todayJST);
@@ -178,8 +193,9 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   // 今日の再発見取得（1日1件固定）
   .get("/api/stocks/rediscovery", async (c) => {
     const todayJST = getJSTDateString();
-    const rediscovery = await getDailyRediscoveryStock(c.env.DB, todayJST);
-    const stats = await getUserStats(c.env.DB);
+    const userId = getUserId(c);
+    const rediscovery = await getDailyRediscoveryStock(c.env.DB, todayJST, userId);
+    const stats = await getUserStats(c.env.DB, userId);
     const is_read = stats.last_rediscovery_date === todayJST;
     return c.json({ rediscovery, is_read });
   })
@@ -187,7 +203,8 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   // 再発見の読了記録 (+1件, +20pt)
   .post("/api/stocks/rediscovery/read", async (c) => {
     const todayJST = getJSTDateString();
-    const stats = await incrementRediscoveryCount(c.env.DB, todayJST);
+    const userId = getUserId(c);
+    const stats = await incrementRediscoveryCount(c.env.DB, todayJST, userId);
     return c.json({ success: true, stats, is_read: true });
   })
 
@@ -241,9 +258,10 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const todayJST = getJSTDateString();
+    const userId = getUserId(c);
 
     // 現在のストリーク統計を取得して新しいストリークを計算
-    const streakContext = await getStreakContext(c.env.DB);
+    const streakContext = await getStreakContext(c.env.DB, userId);
     const streakResult = calculateStreak(
       streakContext.last_stock_date,
       streakContext.current_streak,
@@ -254,6 +272,7 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
     // D1 にストック保存および統計をバッチ更新
     await createStockWithStats(c.env.DB, {
       id,
+      userId,
       content,
       imageKeys,
       tagNames,
@@ -287,13 +306,15 @@ export const stockRoutes = new Hono<{ Bindings: Bindings }>()
   // ストック削除
   .delete("/api/stocks/:id", async (c) => {
     const id = c.req.param("id");
-    await deleteStockWithStats(c.env.DB, id);
+    const userId = getUserId(c);
+    await deleteStockWithStats(c.env.DB, id, userId);
     return c.json({ success: true, id });
   })
 
   // ユーザー統計取得
   .get("/api/stats", async (c) => {
-    const stats = await getUserStats(c.env.DB);
+    const userId = getUserId(c);
+    const stats = await getUserStats(c.env.DB, userId);
     return c.json(stats);
   })
 

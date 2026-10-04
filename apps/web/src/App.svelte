@@ -39,8 +39,12 @@
 
   // ストック削除ハンドラー
   async function handleDeleteStock(id: string) {
+    console.log("[handleDeleteStock] Triggered for id:", id);
     if (confirm("このストックを削除しますか？")) {
+      console.log("[handleDeleteStock] Confirmed, calling deleteStock:", id);
       await stockStore.deleteStock(id);
+    } else {
+      console.log("[handleDeleteStock] Cancelled confirm dialog");
     }
   }
 

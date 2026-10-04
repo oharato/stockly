@@ -50,13 +50,15 @@ export default defineConfig({
       use: {
         baseURL: "https://stockly.ohchans.com",
         ...devices["Pixel 7"],
-        extraHTTPHeaders:
-          process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
+        extraHTTPHeaders: {
+          "X-Stockly-User-Id": "e2e-test",
+          ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
             ? {
                 "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
                 "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
               }
-            : undefined,
+            : {}),
+        },
       },
     },
   ],
