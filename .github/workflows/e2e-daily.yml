@@ -36,6 +36,7 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Playwright OS Dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install-deps chromium
 
       - name: Install Playwright Chromium Browser
