@@ -151,13 +151,14 @@ Kent C. Dodds（Testing Library 作者）が提唱した **「テストトロフ
 
 ### 6.2 Playwright キャッシュアーキテクチャ
 
-ブラウザバイナリのダウンロード（約 150MB）による CI 遅延を最小化するため、以下の分離キャッシュ設計を導入：
+ブラウザバイナリのダウンロード（約 150MB）および OS パッケージインストール（apt）による CI 遅延を最小化するため、以下の最適化キャッシュ設計を導入：
 
-1. **OS 依存パッケージの常時インストール**:
-   - `pnpm exec playwright install-deps chromium` は高速（約 2〜3 秒）かつ OS パッケージキャッシュと衝突しにくいため常時実行。
-2. **ブラウザ本体のキー別キャッシュ**:
-   - `~/.cache/ms-playwright` を `pnpm-lock.yaml` のハッシュ値でキャッシュ。
+1. **ブラウザ本体のキー別キャッシュ**:
+   - `~/.cache/ms-playwright` を `pnpm-lock.yaml` のハッシュ値でキャッシュ（`actions/cache@v6`）。
    - `if: steps.playwright-cache.outputs.cache-hit != 'true'` により、キャッシュヒット時は `playwright install chromium` のダウンロードを完全にスキップ。
+2. **OS 依存パッケージ（apt）のスキップ化**:
+   - GitHub Actions の `ubuntu-latest` ランナーには Chromium 実行に必要な GUI/システムライブラリがあらかじめプリインストールされているため、`install-deps` もキャッシュヒット時は安全にスキップ。
+   - これにより、Playwright セットアップにかかる時間が **0 秒** となり、E2E ジョブ全体がわずか **35 秒** で完了。
 
 ### 6.3 データセンター IP / Cloudflare Bot Challenge 回避設計
 
