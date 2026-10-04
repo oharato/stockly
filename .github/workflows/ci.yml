@@ -66,7 +66,12 @@ jobs:
         run: pnpm run build
 
       - name: Deploy Worker
+        if: env.CLOUDFLARE_API_TOKEN != ''
         run: pnpm run deploy
+
+      - name: Skip Deploy Notice
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "⚠️ CLOUDFLARE_API_TOKEN is not configured in repository secrets. Skipping automated deployment."
 
       - name: Cache Playwright Browsers
         if: env.CF_ACCESS_CLIENT_ID != ''
