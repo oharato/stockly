@@ -126,3 +126,14 @@ Kent C. Dodds（Testing Library 作者）が提唱した **「テストトロフ
 | **`@cloudflare/vitest-plugin`**<br>(Cloudflare 公式最新推奨) | Vite プラグインとして Vitest テストを `workerd` 内で直接実行する公式最新スタック。`readD1Migrations` / `applyD1Migrations` を内蔵。 | 本プロジェクトが採用する Vite+ (`vite-plus` / `vp test`) 内蔵の `vitest@5.0.1` に対し、公式プラグインが現在 `vitest ^4.1.0` を前提としているため、ワーカープール起動時に内部 API 互換性エラー（`Unexpected identifier 'file'`）が発生。                                                                                                                |
 | **`miniflare`** (スタンドアローン v3/v5)                     | Cloudflare のローカルシミュレータ。Node.js プロセスから `getD1Database()` を取得可能。                                              | Node.js 24 環境下において、Node.js メインスレッドと workerd プロキシ間の同期通信（`SynchronousFetcher` の `Atomics.wait()`）がブロックされ、取得処理がデッドロックを起こす。                                                                                                                                                                           |
 | **`node:sqlite` (Node.js LTS 組み込み)** ★採用               | Node.js LTS (v24.13.0+) 組み込みのネイティブ SQLite エンジン（`DatabaseSync`）を活用したインメモリ D1 実装。                        | **完全パス（採用）**。<br>・追加の外部ライブラリ依存ゼロ。<br>・起動オーバーヘッドなし（全テストが 1 秒強で完了）。<br>・`apps/api/migrations/*.sql` を昇順で自動ロードし、テーブル定義や外部キー制約（`PRAGMA foreign_keys = ON;`）を 100% 本物の SQLite で実行。<br>・手動のクエリ判定を全廃し、SQL を変更してもテストヘルパーの追随修正が一切不要。 |
+
+### 5.3 将来の移行計画 (Future Roadmap: `@cloudflare/vitest-plugin`)
+
+本プロジェクトとしては、Cloudflare Workers の本番環境と同一の `workerd` ランタイム上でテストを実行できる **`@cloudflare/vitest-plugin` の採用を将来的の本命方針** と位置付けています。
+
+- **移行トリガー**:
+  - `@cloudflare/vitest-plugin` が `vitest@^5.0.0`（または Vite+ が内蔵する Vitest バージョン）をサポートしたバージョンをリリースした時点。
+- **移行後の姿**:
+  - `apps/api/test/helpers/mock-db.ts` を完全廃止。
+  - `apps/api/vitest.config.ts` で `cloudflareTest()` を設定し、テスト実行前に `cloudflare:test` の `applyD1Migrations(env.DB, migrations)` を呼び出す公式標準パターンへ移行。
+  - これにより、D1 だけでなく Workers AI や KV、R2 バインディングも一元的にテストランタイム内から直接アクセス可能となる。

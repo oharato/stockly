@@ -376,10 +376,29 @@ CREATE INDEX IF NOT EXISTS idx_weekly_summaries_week_key ON weekly_summaries(wee
 
 ### 6.3 テスト環境における D1 エミュレーション設計
 
-単体・結合テスト（Vitest）において、本番 Cloudflare D1 と完全に同一の SQL 実行結果・制約挙動をミリ秒単位で高速再現するため、以下のテスティングアーキテクチャを採用しています：
+単体・結合テスト（Vitest）において、本番 Cloudflare D1 と同等の SQL 実行結果・制約挙動をミリ秒単位で高速再現するため、以下のテスティングアーキテクチャを採用しています。
 
-- **エンジン**: Node.js LTS (v24.13.0+) 組み込みのネイティブ C++ SQLite 実装（`node:sqlite` の `DatabaseSync(':memory:')`）。
-- **マイグレーション自動適用**: テスト用インスタンス初期化時に `apps/api/migrations/*.sql` を昇順で一括適用。
-- **制約保証**: `PRAGMA foreign_keys = ON;` を有効化し、CASCADE 削除や親レコード存在チェックを本番同様に厳密検証。
+#### 6.3.1 Cloudflare 公式テストスタックの調査結果と現状の制約
+
+Cloudflare の最新ドキュメント（2025〜2026）に基づき、公式推奨スタックの導入検証を実施しました：
+
+1. **`@cloudflare/vitest-plugin` (Cloudflare 公式最新推奨)**:
+   - **概要**: Vite プラグイン（`cloudflareTest`）として提供され、テストコードを本物の `workerd` ランタイム内で実行。`readD1Migrations` / `applyD1Migrations` によりマイグレーション自動ロードをサポートする。
+   - **現状の技術的制約**: 本プロジェクトが採用している **Vite+ (`vite-plus` / `vp test`) 内蔵の `vitest@5.0.1`** に対し、公式プラグインは現在 `vitest ^4.1.0` を前提としているため、ワーカープール起動時に内部 API 互換性エラー（`SyntaxError: Unexpected identifier 'file'`）が発生し、現時点では併用不可。
+2. **`miniflare` (スタンドアローン v3/v5)**:
+   - **現状の制約**: Node.js 24 環境下において、Node.js メインスレッドと workerd プロキシ間の同期 IPC（`SynchronousFetcher` の `Atomics.wait()`）がブロックされ、プロセスがデッドロックを起こしてハングする。
+
+#### 6.3.2 現状の採用アーキテクチャ (`node:sqlite`)
+
+上記を踏まえ、現行バージョンでは Node.js LTS (v24.13.0+) 組み込みのネイティブ SQLite（`DatabaseSync`）を活用したインメモリ D1 テスト基盤を採用しています：
+
+- **エンジン**: 追加外部依存ゼロの Node.js 組み込み C++ SQLite エンジン（`DatabaseSync(':memory:')`）。全 51 件のテストが **1.1 秒** で完了。
+- **マイグレーション自動適用**: テスト初期化時に `apps/api/migrations/*.sql`（0001〜0004）を昇順で一括適用。
+- **完全な制約保証**: `PRAGMA foreign_keys = ON;` を有効化し、CASCADE 削除や親レコード存在チェックを本番同様に厳密検証。
 - **D1Database インターフェース完全互換**: `prepare()`, `bind()`, `all()`, `first()`, `run()`, `batch()`, `raw()`, `exec()` を本物の SQLite ステートメントに透過的に委譲。
-- **手動モック追随コストのゼロ化**: 旧来の手書きクエリ文字列判定（`query.includes`）を全廃したため、スキーマやクエリを変更してもテストヘルパーの修正が一切不要。
+- **手動モック追随コストのゼロ化**: 旧来の手書きクエリ文字列判定（`query.includes`）を全廃したため、今後スキーマや SQL を変更してもテストヘルパーの修正が一切不要。
+
+#### 6.3.3 将来の移行計画 (Future Roadmap)
+
+- **`@cloudflare/vitest-plugin` への完全移行**:
+  - Cloudflare 公式の `@cloudflare/vitest-plugin` が Vitest 5.x（または Vite+ の内蔵 Vitest バージョン）に正式対応した段階で、自作の `mock-db.ts` ラッパーを廃止し、公式の `cloudflareTest` プラグインおよび `cloudflare:test` の `applyD1Migrations()` による完全なエッジランタイム内テストへと移行する。
