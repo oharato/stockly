@@ -1,6 +1,14 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Stockly Production E2E Tests (https://stockly.ohchans.com)", () => {
+  test.beforeAll(() => {
+    if (!process.env.CF_ACCESS_CLIENT_ID || !process.env.CF_ACCESS_CLIENT_SECRET) {
+      throw new Error(
+        "❌ Cloudflare Access Service Token が未設定です。.env に CF_ACCESS_CLIENT_ID と CF_ACCESS_CLIENT_SECRET を設定してください。",
+      );
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     page.on("pageerror", (err) => {
       console.error("[Prod Page Error]", err.message);

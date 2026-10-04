@@ -16,6 +16,10 @@ for (const envPath of candidateEnvPaths) {
   }
 }
 
+const isProdOnly =
+  process.env.E2E_TARGET === "prod" ||
+  process.argv.some((arg) => arg === "prod" || arg.includes("project=prod"));
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30000,
@@ -56,22 +60,21 @@ export default defineConfig({
       },
     },
   ],
-  // ローカルサーバーの自動起動 (本番実行時はスキップ、ローカル実行時はポート起動済みの場合は再利用)
-  webServer:
-    process.env.E2E_TARGET === "prod"
-      ? undefined
-      : [
-          {
-            command: "pnpm --filter api run dev",
-            port: 8787,
-            reuseExistingServer: true,
-            timeout: 15000,
-          },
-          {
-            command: "pnpm --filter web run dev",
-            port: 5173,
-            reuseExistingServer: true,
-            timeout: 15000,
-          },
-        ],
+  // ローカルサーバーの自動起動 (本番実行時は不要なためスキップ)
+  webServer: isProdOnly
+    ? undefined
+    : [
+        {
+          command: "pnpm --filter api run dev",
+          port: 8787,
+          reuseExistingServer: true,
+          timeout: 15000,
+        },
+        {
+          command: "pnpm --filter web run dev",
+          port: 5173,
+          reuseExistingServer: true,
+          timeout: 15000,
+        },
+      ],
 });
