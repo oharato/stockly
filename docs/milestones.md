@@ -173,8 +173,9 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
 - [x] **6.3 週次 AI サマリーレポート**:
   - 1週間のストックを Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`) が統合要約し、成長サマリーを提示
   - D1 テーブル `weekly_summaries` でキャッシュ保存 & オンデマンド再生成対応
-- [x] **6.4 Cloudflare Access 保護下での本番 E2E 自動テスト実行基盤 (Service Token / 一時バイパス自動復元)**:
+- [x] **6.4 Cloudflare Access 保護下での本番 E2E 自動テスト実行基盤 (Service Token 完全対応)**:
   - **実装完了**:
-    - **一時バイパス & 自動復元ラッパー (`scripts/run-e2e-prod.ts`)**: 現在の Access 状態を検知 ➔ テスト実行前に Access を自動 OFF ➔ エッジ反映確認 (HTTP 200 ポーリング) ➔ 本番 E2E テスト実行 ➔ `finally` / シグナルハンドラで 100% 確実に Access ON に自動復元
-    - **Service Token 注入対応 (`playwright.config.ts`)**: 環境変数 `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` がある場合はヘッダー注入によりバイパスなしで直接テスト可能
-    - **エッジレートリミット耐性 & 高速タイピング耐性**: クライアント側の 429 バックオフ自動リトライ、0ms 即時ローカル検索耐性検証を E2E テストスイートに組み込み検証完了
+    - **Cloudflare Access Service Token 連携 (本番・CI標準)**: `cf zero-trust access service-tokens create` で `Stockly E2E Test Token` を発行。Access Application "Stockly" に `E2E Service Token Access` ポリシー（`decision: "non_identity"`）を設定。
+    - **Playwright 自動ヘッダー注入 (`playwright.config.ts` & `scripts/run-e2e-prod.ts`)**: `.env` の `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` を検知し、`CF-Access-Client-Id` / `CF-Access-Client-Secret` を HTTP ヘッダーに自動注入。
+    - **完全常時保護**: Access を一切 OFF / バイパスすることなく、PIN 認証画面を透過して本番 E2E 自動テストが約 4 秒台で 100% 成功。
+    - **フォールバック**: Service Token 未設定環境用の一時バイパス & 自動復元ラッパーも継続サポート。

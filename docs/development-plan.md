@@ -275,12 +275,12 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `apps/api/src/routes/stocks.ts`: `GET /api/summary/weekly`, `POST /api/summary/weekly/generate`。
   - `apps/web/src/components/StatsReport.svelte`: サマリーカード表示 & オンデマンド生成機能。
 - **Step 6-4: Cloudflare Access 保護下の本番 E2E 自動実行基盤 (完了)**:
-  - `scripts/run-e2e-prod.ts`: 現在の Access 状態検知 ➔ 一時 Bypass (OFF) ➔ エッジ反映ポーリング確認 (HTTP 200 OK) ➔ Playwright 本番 E2E テスト実行 ➔ `finally` / シグナルでの確実な Access ON 自動復元。
-  - `playwright.config.ts`: Service Token (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) ヘッダー注入対応。
+  - `cf zero-trust access service-tokens create`: 自動テスト専用の Service Token (`Stockly E2E Test Token`) を発行し、Access Application "Stockly" に `E2E Service Token Access` ポリシー (`decision: "non_identity"`) を常時配備。
+  - `playwright.config.ts` & `scripts/run-e2e-prod.ts`: `.env` の Service Token 認証情報を自動読み込み、`CF-Access-Client-Id` / `CF-Access-Client-Secret` を HTTP ヘッダーに注入して Access ON のまま直接認証テストを実行。
   - `apps/web/src/lib/stocks.svelte.ts`: エッジレートリミット (HTTP 429) に対する 1.2 秒バックオフ自動リトライ機構。
-  - `tests/e2e/prod.spec.ts`: 初期ロード ➔ キーワード検索 ➔ 高速タイピング耐性 ➔ タグフィルター ➔ ふりかえりタブ（週次サマリー・リマインダー・エクスポート）を一気通貫で検証（4〜5秒台でパス）。
+  - `tests/e2e/prod.spec.ts`: 初期ロード ➔ キーワード検索 ➔ 高速タイピング耐性 ➔ タグフィルター ➔ ふりかえりタブ（週次サマリー・リマインダー・エクスポート）を一気通貫で検証。
 - **検証実績**:
   - `vp check`: 0 warnings, 0 lint errors, 0 type errors.
   - `vp test --run`: 12 テストファイル（51 テスト）全件パス。
   - `pnpm test:e2e:local`: 3 テスト全件パス (11.3s)。
-  - `pnpm test:e2e:prod`: 1 テスト全件パス (5.2s) & Access 自動復元確認。
+  - `pnpm test:e2e:prod`: **Access ON (完全保護) のまま、Service Token 認証で 1 テスト全件パス (4.3s)**。
