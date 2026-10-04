@@ -136,4 +136,3 @@ test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com
     await expect(page.locator("input[type='search']")).toBeVisible();
   });
 });
-

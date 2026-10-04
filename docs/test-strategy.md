@@ -166,10 +166,10 @@ GitHub Actions ランナー（Azure データセンター IP）から Cloudflare
 
 1. **課題（Bot Fight Mode / Managed Challenge）**:
    - データセンター IP から Headless Chromium のブラウザ内 `fetch` を用いて `POST /api/stocks` を実行すると、Cloudflare のエッジ WAF が自動化ボットと判定し、HTTP 403（`Just a moment...` の JavaScript チャレンジ）を返してリクエストがブロックされる。
-2. **解決策（Node.js API プロキシ委譲）**:
-   - Playwright の `context.route("**/*")` でブラウザ通信を一括インターセプト。
-   - `/api/*` へのリクエストを検知した場合、ブラウザの `sec-ch-ua` や `HeadlessChrome` 等の自動化ブラウザ指紋ヘッダーを除去し、クリーンな API クライアントヘッダー（`User-Agent: Stockly-E2E-Runner/1.0` + Cloudflare Access Service Token）として Node.js の Playwright `request.fetch()` に委譲。
-   - レスポンスを `route.fulfill()` でブラウザへ返すことで、ブラウザ上の UI 描画・DOM 状態遷移・モーダル開閉・検索・削除のフルテストを本番環境のまま 100% 安定して完走させる。
+2. **解決策（Node.js API プロキシ委譲とヘルパー分離）**:
+   - Cloudflare Access 認証 Cookie の取得や API 通信のプロキシ処理、`navigator.webdriver` の偽装などのインフラ・ネットワーク処理は [`tests/e2e/helpers/cf-proxy.ts`](file:///home/oharato/workspace/stockr/tests/e2e/helpers/cf-proxy.ts) に完全に隠蔽・カプセル化。
+   - テストファイル本体（[`tests/e2e/prod.spec.ts`](file:///home/oharato/workspace/stockr/tests/e2e/prod.spec.ts)）は API 呼び出しの雑多なコードを一切排除し、**純粋な実ブラウザ DOM 操作（ボタンクリック、モーダル開閉、テキスト入力、タイムライン描画、検索、タブ遷移、削除）のテストケースのみ** で構成。
+   - これにより、コードの可読性と保守性を担保しつつ、本番環境での実ブラウザ E2E を 100% 安定して完走させる。
 
 ### 6.4 テストユーザー分離 & クリーンアップ規約
 
