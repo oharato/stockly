@@ -186,8 +186,11 @@ Svelte 5 + Vite+ (`vp`) + Cloudflare + Pulumi を採用した確定ロードマ�
   - **マイグレーション自動ロード**: `apps/api/migrations/*.sql`（0001〜0005）を昇順で自動適用。
   - **完全な制約検証**: `PRAGMA foreign_keys = ON;` を有効化し、外部キー制約違反や SQL 構文エラーをテスト実行時に 100% 検出可能に強化。
   - **公式最新スタック検証の文書化**: `@cloudflare/vitest-plugin` および `miniflare` との互換性検証結果（Vite+ 内蔵 Vitest 5 との整合性）を `docs/test-strategy.md` に詳細記録。
-- [x] **6.6 GitHub Actions CI/CD パイプライン強化 (最新 Action・高速化・自動デプロイ・毎日本番E2E)**:
+- [x] **6.6 GitHub Actions CI/CD パイプライン強化 (二層検証・Playwright完全キャッシュ・Dependabot・自動デプロイ)**:
   - **公式最新 Action への刷新**: `actions/checkout@v7`、`actions/cache@v6`、`actions/upload-artifact@v7`。
   - **Vite+ 公式アクション導入による劇的高速化**: `voidzero-dev/setup-vp@v1.21.1` を採用。Vite+ CLI、Node.js 24 LTS、pnpm、依存関係キャッシュ（pnpm store）を 1 ステップで構築し、CI 実行時間を大幅短縮。
-  - **自動デプロイ (CD)**: `main` ブランチ push 時に品質検査・単体テスト通過後、Cloudflare Workers へ自動デプロイ (`cf deploy`)。Service Token が設定されていればデプロイ直後のスモーク E2E テストも自動実行。
-  - **毎日の本番 E2E 監視 (`.github/workflows/e2e-daily.yml`)**: 毎日 UTC 0:00 (JST 9:00) の cron 実行および `workflow_dispatch` 手動実行に対応。Playwright ブラウザキャッシュとテストユーザー分離により、本番環境の健全性を常時自律監視。
+  - **二層パイプライン設計**:
+    - **デプロイ直後検証 (`ci.yml`)**: Cloudflare Workers 本番自動デプロイ直後に、Playwright APIRequestContext を用いた `scripts/verify-health.mjs` を実行。`GET /api/health` 経由で D1 に対する `SELECT COUNT(*) FROM stocks` を発行し、デプロイ＋DB読み込み健全性を約 **300ms**（全体約1分）で自動検証。
+    - **日次実ブラウザ E2E 監視 (`e2e-daily.yml`)**: 毎朝 09:00 JST / 手動実行で、本番環境に対する純粋な DOM 操作（投稿・検索・削除・タブ遷移）を自動検証。`~/.cache/ms-playwright` および OS 依存パッケージのスキップにより、所要時間を約 **35 秒**（ダウンロード 0 秒）に最適化。
+  - **Bot Fight Mode 回避プロキシ (`cf-proxy.ts`)**: データセンター IP からのブラウザ内 POST 遮断を透過プロキシで回避し、テストコードを 100% クリーンな実ブラウザ DOM 操作に分離。
+  - **Dependabot 自動更新管理**: `.github/dependabot.yml` により、`npm` / `github-actions` の `minor` / `patch` をグループ化して単一 PR に集約。
