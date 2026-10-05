@@ -12,14 +12,14 @@
   },
   "dependencies": {
     "@hono/zod-validator": "0.9.1",
-    "hono": "4.13.9",
+    "hono": "4.13.12",
     "zod": "3.24.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260926.1",
+    "@cloudflare/workers-types": "5.20261001.1",
     "@types/node": "24.13.3",
     "cf": "1.0.0-beta.12",
     "typescript": "5.8.2",
-    "wrangler": "4.141.0"
+    "wrangler": "4.146.0"
   }
 }
