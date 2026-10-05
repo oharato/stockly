@@ -100,6 +100,7 @@ function showStatus() {
   console.log(`   ・アプリケーション名: ${details.name}`);
   console.log(`   ・ドメイン: ${details.domain}`);
   console.log(`   ・ID: ${details.id}`);
+  console.log(`   ・セッション有効期限: ${(details as any).session_duration || "24h"}`);
 
   const policies = details.policies || [];
   const hasAllow = policies.some((p: AccessPolicy) => p.decision === "allow");
@@ -160,11 +161,12 @@ function setAccess(enable: boolean) {
     });
   }
 
+  const sessionDuration = process.env.CLOUDFLARE_ACCESS_SESSION_DURATION || "730h";
   const payload = {
     name: APP_NAME,
     domain: APP_DOMAIN,
     type: "self_hosted",
-    session_duration: "24h",
+    session_duration: sessionDuration,
     policies,
   };
 
