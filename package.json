@@ -23,10 +23,10 @@
     "verify:health": "node scripts/verify-health.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.64.0",
     "@types/node": "24.13.3",
     "cf": "1.0.0-beta.12",
-    "vite-plus": "1.0.0"
+    "vite-plus": "1.1.0"
   },
   "packageManager": "pnpm@12.3.4"
 }
