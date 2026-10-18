@@ -22,7 +22,10 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
     await expect(errorBanner).toHaveCount(0);
   });
 
-  test("2. Local stock creation, incremental search, and deletion cycle", async ({ page }) => {
+  test("2. Local stock creation, incremental search, and deletion cycle", async ({
+    page,
+    request,
+  }) => {
     await page.goto("/");
 
     const uniqueText = `ローカルE2E内省メモ-${Date.now()}`;
@@ -39,7 +42,25 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
 
     // 保存ボタンをクリック
     const submitButton = page.locator("button:has-text('ストックする')");
-    await submitButton.click();
+    const [createResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/stocks" &&
+          response.request().postDataJSON()?.content === uniqueText,
+      ),
+      submitButton.click(),
+    ]);
+    expect(createResponse.status()).toBe(201);
+    const createdStock = (await createResponse.json()) as { id: string; content: string };
+    expect(createdStock).toMatchObject({ id: expect.any(String), content: uniqueText });
+    expect(createdStock.id).not.toBe("");
+
+    // 削除後の検証に使う API が、作成したストックと同じユーザーを参照していること
+    const beforeDeleteResponse = await request.get(createResponse.url());
+    expect(beforeDeleteResponse.ok()).toBe(true);
+    const beforeDelete = (await beforeDeleteResponse.json()) as { stocks: Array<{ id: string }> };
+    expect(beforeDelete.stocks).toContainEqual(expect.objectContaining({ id: createdStock.id }));
 
     // タイムラインに作成したストックが表示されること
     const createdCard = page.locator(`article:has-text('${uniqueText}')`).first();
@@ -66,7 +87,27 @@ test.describe("Stockly Local Dev E2E Tests (http://localhost:5173)", () => {
     // 3. 作成したストックを削除
     page.on("dialog", (dialog) => dialog.accept());
     const deleteButton = createdCard.locator("button[aria-label='ストックを削除']");
-    await deleteButton.click();
+    const deleteUrl = new URL(
+      `/api/stocks/${encodeURIComponent(createdStock.id)}`,
+      createResponse.url(),
+    ).href;
+    const [deleteResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) => response.request().method() === "DELETE" && response.url() === deleteUrl,
+      ),
+      deleteButton.click(),
+    ]);
+    expect(
+      deleteResponse.ok() || deleteResponse.status() === 404,
+      `DELETE ${deleteUrl} returned ${deleteResponse.status()}`,
+    ).toBe(true);
+
+    // 楽観的な DOM 更新だけで成功とせず、サーバー側からも対象 ID が消えていること
+    const afterDeleteResponse = await request.get(createResponse.url());
+    expect(afterDeleteResponse.ok()).toBe(true);
+    const afterDelete = (await afterDeleteResponse.json()) as { stocks: Array<{ id: string }> };
+    expect(afterDelete.stocks).toEqual(expect.any(Array));
+    expect(afterDelete.stocks).not.toContainEqual(expect.objectContaining({ id: createdStock.id }));
 
     // タイムラインからカードが消えること
     await expect(page.locator(`article:has-text('${uniqueText}')`)).toHaveCount(0, {

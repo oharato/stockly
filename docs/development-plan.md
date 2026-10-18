@@ -296,3 +296,24 @@ Milestone 1 を以下の **4つのスモールステップ** に分割して進�
   - `vp test --run`: 12 テストファイル（52 テスト）全件パス。
   - `pnpm test:e2e:local`: 3 テスト全件パス (10.7s)。
   - `pnpm test:e2e:prod`: **Access ON (完全保護) のまま、Service Token 認証で 1 テスト全件パス (4.0s)**。
+
+#### 14. 削除失敗のロールバック & 本番 E2E 終了処理の修正
+
+- **削除失敗時の表示**:
+  - 楽観的に非表示にしたストックを、通信エラー・HTTP エラー・429/503 のリトライ上限到達時に復元し、既存のエラー表示に理由を渡す。
+  - リトライは初回の削除対象を保持する単一ループで最大 3 回。404 は削除済みとして正常扱いとする。
+  - 復元は削除対象だけに限定し、待機中に追加・編集・削除された別のストックや現在の検索条件を維持する。
+- **本番プロキシのライフサイクル**:
+  - `tests/e2e/helpers/prod-test.ts` の自動 fixture が `request` / `context` / `page` に依存する。
+  - fixture 終了時に `context.unrouteAll({ behavior: "wait" })` を呼び、進行中の fetch と fulfill を完了してから request fixture を破棄する。API timeout は 30 秒、fixture の終了処理には 45 秒を確保する。
+  - fetch の失敗だけで route を abort し、fulfill の失敗後に同じ route を二重処理しない。
+- **削除検証とクリーンアップ**:
+  - ローカル・本番 CRUD テストは POST 応答の ID を取得し、同じユーザーの API 一覧に存在することを事前確認する。
+  - 該当 ID の DELETE 成功応答（2xx / 404）を待ち、成功した API 一覧からの消失と DOM からの消失の両方を検証する。
+  - テストデータのクリーンアップは一覧・削除の HTTP ステータスと一覧の形を検証し、失敗を警告だけで握りつぶさない。
+- **回帰テスト**:
+  - `apps/web/test/stocks.test.ts`: 通常失敗、オフライン、リトライ成功・上限、404、件数・検索条件・並行更新の保持。
+  - `tests/cf-proxy.test.ts`: 遅延した fetch / fulfill の待機、route 二重処理防止、クリーンアップの失敗検出。外部 API 通信をモックし、本番データにアクセスしない。
+  - ルートの `vp test --run` は既存の Web Vite 設定を引き継いで Svelte runes を変換する。
+  - 検証: `pnpm exec vp check`、`pnpm exec vp test --run`、`pnpm run build`。
+  - ローカルの実ブラウザ検証には、`cf dev` を起動できる環境と Playwright Chromium が必要。この修正作業のクラウド環境では `uv_interface_addresses` の環境エラーにより API サーバーが起動できず、`pnpm test:e2e:local` は未完了。本番 E2E は実行していない。

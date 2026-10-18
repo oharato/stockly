@@ -387,43 +387,68 @@ class StockStore {
   }
 
   // ストック削除
-  async deleteStock(id: string, retryCount = 0): Promise<void> {
+  async deleteStock(id: string): Promise<void> {
     this.clearAiPollTimers();
+    this.error = null;
+    this.isAuthError = false;
     const previousAllStocks = [...this.allStocks];
+    const deletedIndex = previousAllStocks.findIndex((s) => s.id === id);
+    const deletedStock = previousAllStocks[deletedIndex];
+    const previousStats = this.stats;
+    const previousTotal = previousStats.total_stocks;
 
-    // 楽観的UI更新（初回呼び出し時に即座に画面から消す）
-    if (retryCount === 0) {
-      this.allStocks = this.allStocks.filter((s) => s.id !== id);
-      this.applyLocalFilter();
-      this.stats.total_stocks = Math.max(0, this.stats.total_stocks - 1);
-    }
+    // リトライ中も初回の削除対象と件数差分を保持し、楽観的更新は一度だけ行う
+    this.allStocks = this.allStocks.filter((s) => s.id !== id);
+    this.applyLocalFilter();
+    this.stats.total_stocks = Math.max(0, previousTotal - 1);
+    const removedCount = previousTotal - this.stats.total_stocks;
 
     try {
-      const res = await client.api.stocks[":id"].$delete({
-        param: { id },
-      });
-      if (res.status === 404) {
-        // すでに削除済みの場合は正常扱い
-        return;
-      }
-      if (!res.ok) {
-        if ((res.status === 429 || res.status === 503) && retryCount < 3) {
-          const delay = (retryCount + 1) * 1500;
-          console.warn(`[deleteStock] Throttled (${res.status}), retrying in ${delay}ms...`);
-          await new Promise((r) => setTimeout(r, delay));
-          return await this.deleteStock(id, retryCount + 1);
+      for (let retryCount = 0; ; retryCount += 1) {
+        const res = await client.api.stocks[":id"].$delete({
+          param: { id },
+        });
+        if (res.ok || res.status === 404) {
+          // すでに削除済みの場合も正常扱い
+          return;
         }
-        throw new Error("削除に失敗しました");
+        if ((res.status !== 429 && res.status !== 503) || retryCount >= 3) {
+          throw new Error("削除に失敗しました");
+        }
+
+        const delay = (retryCount + 1) * 1500;
+        console.warn(`[deleteStock] Throttled (${res.status}), retrying in ${delay}ms...`);
+        await new Promise((r) => setTimeout(r, delay));
       }
     } catch (err: unknown) {
       console.error("[deleteStock] Error occurred:", err);
-      // リトライの上限に達した、あるいは429/503以外の失敗時はロールバック
-      if (retryCount >= 3) {
-        this.allStocks = previousAllStocks;
-        this.applyLocalFilter();
-        this.stats.total_stocks = previousAllStocks.length;
-        this.handleError(err, "削除エラーが発生しました");
+
+      // この削除だけを戻し、待機中に追加・更新・削除された別のストックを維持する
+      if (deletedStock && !this.allStocks.some((s) => s.id === id)) {
+        const remainingIds = new Set(this.allStocks.map((s) => s.id));
+        const nextStock = previousAllStocks
+          .slice(deletedIndex + 1)
+          .find((s) => remainingIds.has(s.id));
+        const previousStock = previousAllStocks
+          .slice(0, deletedIndex)
+          .findLast((s) => remainingIds.has(s.id));
+        const restoreIndex = nextStock
+          ? this.allStocks.findIndex((s) => s.id === nextStock.id)
+          : previousStock
+            ? this.allStocks.findIndex((s) => s.id === previousStock.id) + 1
+            : this.allStocks.length;
+        this.allStocks = [
+          ...this.allStocks.slice(0, restoreIndex),
+          deletedStock,
+          ...this.allStocks.slice(restoreIndex),
+        ];
       }
+      this.applyLocalFilter();
+      // fetchStats が新しいサーバー統計に置き換えていた場合は、その件数を維持する
+      if (this.stats === previousStats) {
+        this.stats.total_stocks += removedCount;
+      }
+      this.handleError(err, "削除エラーが発生しました");
     }
   }
 }
