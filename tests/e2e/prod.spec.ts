@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { setupCloudflareAccessProxy, cleanupTestUserStocks } from "./helpers/cf-proxy";
+import { test, expect } from "./helpers/prod-test";
+import { cleanupTestUserStocks } from "./helpers/cf-proxy";
 
 test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com)", () => {
   test.beforeAll(async ({ request }) => {
@@ -10,11 +10,6 @@ test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com
   test.afterAll(async ({ request }) => {
     // テスト完了後の確実なクリーンアップ
     await cleanupTestUserStocks(request);
-  });
-
-  test.beforeEach(async ({ context, page, request }) => {
-    // Cloudflare Access 認証 & WAF 回避の環境セットアップ
-    await setupCloudflareAccessProxy(context, page, request);
   });
 
   test("1. 本番初期レンダリングと UI コンポーネントの正常表示", async ({ page }) => {
@@ -34,6 +29,7 @@ test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com
 
   test("2. ストック新規投稿、リアルタイム検索、および削除クリーンアップのフルライフサイクル", async ({
     page,
+    request,
   }) => {
     const uniqueTag = `#E2E${Date.now().toString().slice(-4)}`;
     const uniqueText = `本番ブラウザ検証メモ ${uniqueTag} - 実DOMインタラクションによる自動テスト`;
@@ -53,7 +49,26 @@ test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com
 
     // 3. 「ストックする」ボタンをクリック
     const submitButton = page.locator("button:has-text('ストックする')");
-    await submitButton.click();
+    const [createResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/stocks" &&
+          response.request().postDataJSON()?.content === uniqueText,
+      ),
+      submitButton.click(),
+    ]);
+    expect(createResponse.status()).toBe(201);
+    const createdStock = (await createResponse.json()) as { id: string; content: string };
+    expect(createdStock).toMatchObject({ id: expect.any(String), content: uniqueText });
+    expect(createdStock.id).not.toBe("");
+
+    // request fixture は prod 設定のテストユーザー ID と Access 認証ヘッダーを引き継ぐ
+    const apiHeaders = { "User-Agent": "Stockly-E2E-Runner/1.0" };
+    const beforeDeleteResponse = await request.get(createResponse.url(), { headers: apiHeaders });
+    expect(beforeDeleteResponse.ok()).toBe(true);
+    const beforeDelete = (await beforeDeleteResponse.json()) as { stocks: Array<{ id: string }> };
+    expect(beforeDelete.stocks).toContainEqual(expect.objectContaining({ id: createdStock.id }));
 
     // 4. モーダルが正常に閉じること
     await expect(page.locator("dialog")).toHaveCount(0, { timeout: 12000 });
@@ -95,13 +110,33 @@ test.describe("Stockly Production Browser E2E Tests (https://stockly.ohchans.com
       await searchInput.fill("");
     }
 
-    // 9. 作成したストックを削除して DOM から消滅することを確認
+    // 9. 作成した ID の削除応答を待ち、サーバーと DOM の両方から消滅することを確認
     const targetCard = page.locator(`article:has-text('${uniqueText}')`);
     await expect(targetCard).toBeVisible({ timeout: 5000 });
     await page.waitForTimeout(500);
 
     const deleteButton = targetCard.locator("button[aria-label='ストックを削除']");
-    await deleteButton.click({ force: true });
+    const deleteUrl = new URL(
+      `/api/stocks/${encodeURIComponent(createdStock.id)}`,
+      createResponse.url(),
+    ).href;
+    const [deleteResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) => response.request().method() === "DELETE" && response.url() === deleteUrl,
+      ),
+      deleteButton.click({ force: true }),
+    ]);
+    expect(
+      deleteResponse.ok() || deleteResponse.status() === 404,
+      `DELETE ${deleteUrl} returned ${deleteResponse.status()}`,
+    ).toBe(true);
+
+    // GET /api/stocks/:id は存在しないため、認証済み一覧で対象 ID の不在を検証する
+    const afterDeleteResponse = await request.get(createResponse.url(), { headers: apiHeaders });
+    expect(afterDeleteResponse.ok()).toBe(true);
+    const afterDelete = (await afterDeleteResponse.json()) as { stocks: Array<{ id: string }> };
+    expect(afterDelete.stocks).toEqual(expect.any(Array));
+    expect(afterDelete.stocks).not.toContainEqual(expect.objectContaining({ id: createdStock.id }));
 
     // タイムラインからカードの DOM 要素が消えること
     await expect(targetCard).toHaveCount(0, { timeout: 8000 });
